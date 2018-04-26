@@ -131,9 +131,6 @@ class DummyWidget(Widget):
 
 
 def main(stdscr):
-    stdscr.clear()
-    stdscr.refresh()
-
     root = BaseLayout(Value(curses.COLS), Value(curses.LINES), None)
     l1 = VerticalLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), root)
     l2 = BaseLayout(Value(1, Value.VAL_RELATIVE), Value(0.33, Value.VAL_RELATIVE), l1)
