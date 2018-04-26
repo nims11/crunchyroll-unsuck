@@ -19,6 +19,26 @@ class BaseObject(object):
         pass
 
 
+class App(object):
+    def __init__(self, root, stdscr):
+        self.input_control = None
+        self.root = root
+        self.root.set_app(self)
+        self.stdscr = stdscr
+
+
+    def run(self):
+        self.root.redraw()
+        while True:
+            c = self.stdscr.getch()
+            if self.input_control:
+                self.input_control.send_input_ch(c)
+
+
+    def set_input_control(self, obj):
+        self.input_control = obj
+
+
 class BaseLayout(BaseObject):
     """ Base Layout unit. Can only contain one child
     """
@@ -31,8 +51,21 @@ class BaseLayout(BaseObject):
         self._y = None
         self.parent = parent
         self.children = []
+        self.app = None
         if parent != None:
             self.parent.add_child(self)
+
+
+    def set_app(self, app):
+        if self.parent:
+            raise Exception("You can only set app for the root")
+        self.app = app
+
+
+    def get_app(self):
+        if not self.app:
+            self.app = self.parent.get_app()
+        return self.app
 
 
     def add_child(self, child):
@@ -133,6 +166,10 @@ class Widget(BaseLayout):
         pass
 
 
+    def send_input_ch(self, key):
+        pass
+
+
 class DummyWidget(Widget):
     def __init__(self, parent):
         super().__init__(parent)
@@ -171,14 +208,83 @@ class ContainerWidget(Widget):
         self.window.refresh()
 
         for child in self.children:
-            if self.border:
+            if self.border or self.title:
                 child.compute_dimensions(self._height-2, self._width-2, self._x+1, self._y + 1)
             else:
                 child.compute_dimensions(self._height, self._width, self._x, self._y)
             child.redraw()
 
 
+class ItemWidget(Widget):
+    def __init__(self, parent, text):
+        super().__init__(parent)
+        self.text = text
+        self._focus = False
+
+    def redraw(self):
+        window = curses.newwin(self._height, self._width, self._y, self._x)
+        if self._focus:
+            window.bkgd(' ', curses.A_REVERSE)
+            window.addstr(0, 0, self.text, curses.A_REVERSE)
+        else:
+            window.addstr(0, 0, self.text)
+        window.refresh()
+
+
+    def focus(self):
+        self._focus = True
+
+
+    def unfocus(self):
+        self._focus = False
+
+
+class BrowserWidget(Widget):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.window = None
+        self.children = []
+        self.pos = -1
+
+
+    def add_child(self, child):
+        # if not isinstance(child, item):
+        #     raise Exception("ContainerWidget cannot have more than one children")
+        self.children.append(child)
+
+
+    def redraw(self):
+        self.get_app().set_input_control(self)
+        if len(self.children) > 0 and self.pos < 0:
+            self.pos = 0
+
+        self.children[self.pos].focus()
+        extra_padding = int(0.5 * self._height)
+        start = max(min(len(self.children) - self._height, self.pos - extra_padding), 0)
+        for idx, child in enumerate(self.children[start:start+self._height]):
+            child.compute_dimensions(1, self._width, self._x, idx + self._y)
+            child.redraw()
+
+
+    def send_input_ch(self, key):
+        if chr(key) == 'j':
+            if self.pos < len(self.children) - 1:
+                self.children[self.pos].unfocus()
+                self.pos += 1
+                self.redraw()
+            return True
+        elif chr(key) == 'k':
+            if self.pos > 0:
+                self.children[self.pos].unfocus()
+                self.pos -= 1
+                self.redraw()
+            return True
+
+        return False
+
+
 def main(stdscr):
+    curses.use_default_colors()
     root = BaseLayout(Value(curses.COLS), Value(curses.LINES), None)
     l1 = HorizontalLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), root)
     l2 = BaseLayout(Value(0.3, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), l1)
@@ -186,10 +292,10 @@ def main(stdscr):
 
     c1 = ContainerWidget(l2, True, "Anime")
     ContainerWidget(l3, True, "Episodes")
-    DummyWidget(c1)
+    lst = BrowserWidget(c1)
+    for i in list(range(-10, 40))[::-1]:
+        ItemWidget(lst, str(i))
 
-    root.redraw()
-
-    stdscr.getkey()
+    App(root, stdscr).run()
 
 curses.wrapper(main)
