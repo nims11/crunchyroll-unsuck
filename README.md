@@ -1,7 +1,8 @@
 # crunchyroll-unsuck
 
+For the sane ones who refuse to install flash on their computers.
+
 - Light UI
-- Best way to use crunchyroll (in my opinion)
 - Use whatever player you want (relies on streamlink)
 - MAL sync
 
