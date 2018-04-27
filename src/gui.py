@@ -23,9 +23,15 @@ class BaseObject(object):
 
 
 class InputHandler(object):
-    def run(self, app):
+    def __init__(self):
+        self.app = None
+
+    def set_app(self, app):
+        self.app = app
+
+    def run(self):
         while True:
-            app.stdscr.getkey()
+            self.app.stdscr.getkey()
 
 
 class App(object):
@@ -34,6 +40,7 @@ class App(object):
         if inputhandler == None:
             inputhandler = InputHandler()
         self.inputhandler = inputhandler
+        self.inputhandler.set_app(self)
         self.workspaces = {}
         self.current_workspace = None
         self.log_widget = None
@@ -53,9 +60,12 @@ class App(object):
     def log(self, msg):
         self.log_widget.update(msg)
 
+    def clear_log(self, msg):
+        self.log_widget.clear()
+
     def run(self):
         self.workspaces[self.current_workspace].redraw()
-        self.inputhandler.run(self)
+        self.inputhandler.run()
 
 
 class BaseLayout(BaseObject):
@@ -238,9 +248,9 @@ class ItemWidget(Widget):
         window = curses.newwin(self._height, self._width, self._y, self._x)
         if self._focus:
             window.bkgd(' ', curses.A_REVERSE)
-            window.addstr(0, 0, self.get_display_text(self.text, self._width - 3), curses.A_REVERSE)
+            window.addstr(0, 0, self.get_display_text(self.text, self._width - 4), curses.A_REVERSE)
         else:
-            window.addstr(0, 0, self.get_display_text(self.text, self._width - 3))
+            window.addstr(0, 0, self.get_display_text(self.text, self._width - 4))
         window.refresh()
 
     def focus(self):
@@ -269,6 +279,8 @@ class BrowserWidget(Widget):
         self.pos = -1
 
     def redraw(self):
+        window = curses.newwin(self._height, self._width, self._y, self._x)
+        window.refresh()
         if len(self.children) > 0:
             if self.pos < 0:
                 self.pos = 0
@@ -307,13 +319,17 @@ class LogWidget(Widget):
         self.buffer_size = buffer_size
 
     def update(self, line):
-        self.lines.append(line)
+        self.lines.append(line.strip())
         if len(self.lines) > self.buffer_size:
             self.lines = self.lines[-self.buffer_size:]
-        log(str(self.lines))
+        self.redraw()
+
+    def clear(self):
+        self.lines = []
         self.redraw()
 
     def redraw(self):
+        window = curses.newwin(self._height, self._width, self._y, self._x)
         for idx, line in enumerate(self.lines[-self._height:]):
-            window = curses.newwin(self._height, self._width, self._y, self._x)
-            window.addstr(idx, 0, self.get_display_text(line, self._width))
+            window.addnstr(idx, 0, self.get_display_text(line, self._width - 4), self._width)
+        window.refresh()

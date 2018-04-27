@@ -1,5 +1,6 @@
 import subprocess
 import curses
+import os
 from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, LogWidget
 from gui import BaseLayout, HorizontalLayout, VerticalLayout, Value, App
 from api.crunchyroll import CrunchyrollAPI
@@ -9,6 +10,7 @@ api = CrunchyrollAPI()
 
 class MyInputHandler(InputHandler):
     def __init__(self, anime_list_widget, episode_list_widget):
+        super().__init__()
         self.anime_list_widget = anime_list_widget
         self.episode_list_widget = episode_list_widget
         self.focused_widget = self.anime_list_widget
@@ -44,7 +46,9 @@ class MyInputHandler(InputHandler):
             return
 
         anime = selected_item.get_data()
+        self.app.log('Fetching episodes...')
         episodes = api.list_media(series_id=anime['series']['series_id'], sort='desc', limit=50)
+        self.app.log('Fetched %d episodes' % len(episodes))
         episode_item_text = []
         for episode in episodes:
             episode_item_text.append((episode['episode_number'], episode['name']))
@@ -56,10 +60,24 @@ class MyInputHandler(InputHandler):
         self.episode_list_widget.redraw()
         self.focused_widget = self.episode_list_widget
 
-    def run(self, app):
+    def open_episode(self):
+        selected_item = self.episode_list_widget.get_selected_item()
+        if selected_item == None:
+            return
+        episode = selected_item.get_data()
+        args = [
+            'streamlink', episode['url'], 'best', '--verbose-player', "-a",
+            "--term-status-msg \"Playback Status: ${{time-pos}}\" {filename}"
+        ]
+        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        self.app.log('$ ' + ' '.join(args))
+        for line in p.stdout:
+            self.app.log(line.decode())
+        p.wait()
+
+    def run(self):
         while True:
-            ch = app.stdscr.getkey()
-            app.log("Pressed %d" % (ord(ch)))
+            ch = self.app.stdscr.getkey()
             if ch == 'j' or ch == "KEY_DOWN":
                 if isinstance(self.focused_widget, BrowserWidget):
                     self.focused_widget.down()
@@ -74,11 +92,7 @@ class MyInputHandler(InputHandler):
                 if self.focused_widget == self.anime_list_widget:
                     self.list_episodes()
                 elif self.focused_widget == self.episode_list_widget:
-                    selected_item = self.episode_list_widget.get_selected_item()
-                    if selected_item != None:
-                        episode = selected_item.get_data()
-                        subprocess.call('streamlink \'%s\' best' % episode['url'], shell=True)
-                        app.set_workspace('main')
+                    self.open_episode()
 
 
 def main(stdscr):
