@@ -1,6 +1,7 @@
 import subprocess
 import curses
-from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, BaseLayout, HorizontalLayout, VerticalLayout, Value, App
+from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, LogWidget
+from gui import BaseLayout, HorizontalLayout, VerticalLayout, Value, App
 from api.crunchyroll import CrunchyrollAPI
 
 stdscr = curses.initscr()
@@ -58,6 +59,7 @@ class MyInputHandler(InputHandler):
     def run(self, app):
         while True:
             ch = app.stdscr.getkey()
+            app.log("Pressed %d" % (ord(ch)))
             if ch == 'j' or ch == "KEY_DOWN":
                 if isinstance(self.focused_widget, BrowserWidget):
                     self.focused_widget.down()
@@ -84,9 +86,15 @@ def main(stdscr):
     stdscr.keypad(True)
     curses.use_default_colors()
     root = BaseLayout(Value(curses.COLS), Value(curses.LINES), None)
-    l1 = HorizontalLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), root)
+
+    l4 = VerticalLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), root)
+
+    l1 = HorizontalLayout(Value(1, Value.VAL_RELATIVE), Value(0.8, Value.VAL_RELATIVE), l4)
     l2 = BaseLayout(Value(0.3, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), l1)
     l3 = BaseLayout(Value(0.7, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), l1)
+
+    l5 = BaseLayout(Value(1, Value.VAL_RELATIVE), Value(0.2, Value.VAL_RELATIVE), l4)
+    c3 = ContainerWidget(l5, True, "Log")
 
     c1 = ContainerWidget(l2, True, "Anime")
     c2 = ContainerWidget(l3, True, "Episodes")
@@ -99,6 +107,7 @@ def main(stdscr):
 
     app = App(stdscr, MyInputHandler(lst1, lst2))
     app.add_workspace('main', root)
+    app.set_log_widget(LogWidget(c3))
     app.run()
 
 curses.wrapper(main)

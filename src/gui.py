@@ -36,6 +36,7 @@ class App(object):
         self.inputhandler = inputhandler
         self.workspaces = {}
         self.current_workspace = None
+        self.log_widget = None
 
     def add_workspace(self, name, root, default=False):
         self.workspaces[name] = root
@@ -45,6 +46,12 @@ class App(object):
     def set_workspace(self, name):
         self.current_workspace = name
         self.workspaces[self.current_workspace].redraw()
+
+    def set_log_widget(self, widget):
+        self.log_widget = widget
+
+    def log(self, msg):
+        self.log_widget.update(msg)
 
     def run(self):
         self.workspaces[self.current_workspace].redraw()
@@ -169,8 +176,12 @@ class Widget(BaseLayout):
     def redraw(self):
         pass
 
-    def send_input_ch(self, key):
-        pass
+    def get_display_text(self, text, width):
+        """ Truncates if there is a chance of overflow. Don't use tabs, it breaks things
+        """
+        if len(text) > width:
+            return text[:width] + '...'
+        return text
 
 
 class DummyWidget(Widget):
@@ -223,21 +234,13 @@ class ItemWidget(Widget):
         self._focus = False
         self.data = data
 
-    def get_display_text(self):
-        """ Truncates if there is a chance of overflow. Don't use tabs, it breaks things
-        """
-        if len(self.text) > self._width - 3:
-            return self.text[:self._width - 6] + '...'
-        return self.text
-
     def redraw(self):
         window = curses.newwin(self._height, self._width, self._y, self._x)
         if self._focus:
             window.bkgd(' ', curses.A_REVERSE)
-            window.addstr(0, 0, self.get_display_text(), curses.A_REVERSE)
+            window.addstr(0, 0, self.get_display_text(self.text, self._width - 3), curses.A_REVERSE)
         else:
-            log(self.get_display_text())
-            window.addstr(0, 0, self.get_display_text())
+            window.addstr(0, 0, self.get_display_text(self.text, self._width - 3))
         window.refresh()
 
     def focus(self):
@@ -296,3 +299,21 @@ class BrowserWidget(Widget):
             return self.children[self.pos]
         return None
 
+
+class LogWidget(Widget):
+    def __init__(self, parent, buffer_size=25):
+        super().__init__(parent)
+        self.lines = []
+        self.buffer_size = buffer_size
+
+    def update(self, line):
+        self.lines.append(line)
+        if len(self.lines) > self.buffer_size:
+            self.lines = self.lines[-self.buffer_size:]
+        log(str(self.lines))
+        self.redraw()
+
+    def redraw(self):
+        for idx, line in enumerate(self.lines[-self._height:]):
+            window = curses.newwin(self._height, self._width, self._y, self._x)
+            window.addstr(idx, 0, self.get_display_text(line, self._width))
