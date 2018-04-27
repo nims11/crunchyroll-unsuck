@@ -42,17 +42,14 @@ class App(object):
         self.workspaces = {}
         self.current_workspace = None
 
-
     def add_workspace(self, name, root, default=False):
         self.workspaces[name] = root
         if default or len(self.workspaces) == 1:
             self.current_workspace = name
 
-
     def set_workspace(self, name):
         self.current_workspace = name
         self.workspaces[self.current_workspace].redraw()
-
 
     def run(self):
         self.workspaces[self.current_workspace].redraw()
@@ -75,24 +72,20 @@ class BaseLayout(BaseObject):
         if parent != None:
             self.parent.add_child(self)
 
-
     # def set_app(self, app):
     #     if self.parent:
     #         raise Exception("You can only set app for the root")
     #     self.app = app
-
 
     # def get_app(self):
     #     if not self.app:
     #         self.app = self.parent.get_app()
     #     return self.app
 
-
     def add_child(self, child):
         if self.children:
             raise Exception("BaseLayout cannot have more than one children")
         self.children.append(child)
-
 
     def compute_dimensions(self, parent_height=None, parent_width=None, parent_x = None, parent_y = None):
         if parent_x == None:
@@ -118,7 +111,6 @@ class BaseLayout(BaseObject):
                 self._width = int(parent_width*self.width.value)
         elif self.width.type == Value.VAL_RELATIVE or self.height.type == Value.VAL_RELATIVE:
             raise Exception('root layout cannot have relative dimensions')
-
 
     def redraw(self):
         if self.parent == None:
@@ -170,10 +162,8 @@ class Widget(BaseLayout):
         if parent == None:
             raise Exception("Widget needs parents")
 
-
     def add_child(self, child):
         raise Exception("Widget cannot have children")
-
 
     def compute_dimensions(self, parent_height=None, parent_width=None, parent_x = None, parent_y = None):
         self._height = parent_height
@@ -181,10 +171,8 @@ class Widget(BaseLayout):
         self._x = parent_x
         self._y = parent_y
 
-
     def redraw(self):
         pass
-
 
     def send_input_ch(self, key):
         pass
@@ -211,12 +199,10 @@ class ContainerWidget(Widget):
         self.title = title
         self.border = border
 
-
     def add_child(self, child):
         if self.children:
             raise Exception("ContainerWidget cannot have more than one children")
         self.children.append(child)
-
 
     def redraw(self):
         if self.window is not None:
@@ -275,17 +261,14 @@ class BrowserWidget(Widget):
         self.children = []
         self.pos = -1
 
-
     def add_child(self, child):
         # if not isinstance(child, item):
         #     raise Exception("ContainerWidget cannot have more than one children")
         self.children.append(child)
 
-
     def clear_children(self):
         self.children = []
         self.pos = -1
-
 
     def redraw(self):
         if len(self.children) > 0:
@@ -301,20 +284,17 @@ class BrowserWidget(Widget):
             child.compute_dimensions(1, self._width, self._x, idx + self._y)
             child.redraw()
 
-
     def up(self):
         if self.pos > 0:
             self.children[self.pos].unfocus()
             self.pos -= 1
             self.redraw()
 
-
     def down(self):
         if self.pos < len(self.children) - 1:
             self.children[self.pos].unfocus()
             self.pos += 1
             self.redraw()
-
 
     def get_selected_item(self):
         if self.pos >= 0:
@@ -327,7 +307,6 @@ class MyInputHandler(InputHandler):
         self.anime_list_widget = anime_list_widget
         self.episode_list_widget = episode_list_widget
         self.focused_widget = self.anime_list_widget
-
 
     def switch_active_widget(self):
         if self.focused_widget == self.anime_list_widget:
