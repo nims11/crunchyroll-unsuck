@@ -242,23 +242,28 @@ class ItemWidget(Widget):
         self._focus = False
         self.data = data
 
+    def get_display_text(self):
+        """ Truncates if there is a chance of overflow. Don't use tabs, it breaks things
+        """
+        if len(self.text) > self._width - 3:
+            return self.text[:self._width - 6] + '...'
+        return self.text
+
     def redraw(self):
         window = curses.newwin(self._height, self._width, self._y, self._x)
         if self._focus:
             window.bkgd(' ', curses.A_REVERSE)
-            window.addstr(0, 0, self.text, curses.A_REVERSE)
+            window.addstr(0, 0, self.get_display_text(), curses.A_REVERSE)
         else:
-            window.addstr(0, 0, self.text)
+            log(self.get_display_text())
+            window.addstr(0, 0, self.get_display_text())
         window.refresh()
-
 
     def focus(self):
         self._focus = True
 
-
     def unfocus(self):
         self._focus = False
-
 
     def get_data(self):
         return self.data
@@ -324,6 +329,49 @@ class MyInputHandler(InputHandler):
         self.focused_widget = self.anime_list_widget
 
 
+    def switch_active_widget(self):
+        if self.focused_widget == self.anime_list_widget:
+            self.focused_widget = self.episode_list_widget
+        elif self.focused_widget == self.episode_list_widget:
+            self.focused_widget = self.anime_list_widget
+
+    def tablize(self, rows, extra_padding):
+        ret = []
+        offset = []
+        prev_offset = 0
+        for col in range(len(rows[0])):
+            offset.append(0)
+            for row in rows:
+                ret.append('')
+                offset[-1] = max(offset[-1], prev_offset + len(row[col]) + extra_padding)
+            prev_offset = offset[-1]
+
+        for col in range(len(rows[0])):
+            for idx, row in enumerate(rows):
+                ret[idx] += row[col]
+                if col != len(rows[0])-1:
+                    ret[idx] += ' ' * (offset[col] - len(ret[idx]))
+
+        return ret
+
+    def list_episodes(self):
+        selected_item = self.anime_list_widget.get_selected_item()
+        if selected_item == None:
+            return
+
+        anime = selected_item.get_data()
+        episodes = api.list_media(series_id=anime['series']['series_id'], sort='desc', limit=50)
+        episode_item_text = []
+        for episode in episodes:
+            episode_item_text.append((episode['episode_number'], episode['name']))
+        episode_item_text = self.tablize(episode_item_text, 5)
+
+        self.episode_list_widget.clear_children()
+        for episode_text, episode in zip(episode_item_text, episodes):
+            ItemWidget(self.episode_list_widget, episode_text, episode)
+        self.episode_list_widget.redraw()
+        self.focused_widget = self.episode_list_widget
+
     def run(self, app):
         while True:
             ch = app.stdscr.getkey()
@@ -334,26 +382,12 @@ class MyInputHandler(InputHandler):
                 if isinstance(self.focused_widget, BrowserWidget):
                     self.focused_widget.up()
             elif ch == 'l' or ch == "KEY_RIGHT":
-                if self.focused_widget == self.anime_list_widget:
-                    self.focused_widget = self.episode_list_widget
-                elif self.focused_widget == self.episode_list_widget:
-                    self.focused_widget = self.anime_list_widget
+                self.switch_active_widget()
             elif ch == 'h' or ch == "KEY_LEFT":
-                if self.focused_widget == self.anime_list_widget:
-                    self.focused_widget = self.episode_list_widget
-                elif self.focused_widget == self.episode_list_widget:
-                    self.focused_widget = self.anime_list_widget
+                self.switch_active_widget()
             elif ch == '\n':
                 if self.focused_widget == self.anime_list_widget:
-                    selected_item = self.anime_list_widget.get_selected_item()
-                    if selected_item != None:
-                        anime = selected_item.get_data()
-                        episodes = api.list_media(series_id=anime['series']['series_id'], sort='desc')
-                        self.episode_list_widget.clear_children()
-                        for episode in episodes:
-                            ItemWidget(self.episode_list_widget, '%s\t\t%s' % (episode['episode_number'], episode['name']), episode)
-                        self.episode_list_widget.redraw()
-                        self.focused_widget = self.episode_list_widget
+                    self.list_episodes()
                 elif self.focused_widget == self.episode_list_widget:
                     selected_item = self.episode_list_widget.get_selected_item()
                     if selected_item != None:
