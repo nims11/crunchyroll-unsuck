@@ -1,7 +1,7 @@
 """ Extending crunchyroll api implemented in streamlink
 """
 import json
-import config
+from .config import USER, PASS
 from streamlink.session import Streamlink
 
 
@@ -10,8 +10,8 @@ class CrunchyrollAPI(object):
         self.session = Streamlink()
         self.session.set_loglevel("debug")
         self.plugin = self.session.get_plugins()['crunchyroll']('')
-        self.plugin.options.set('username', config.USER)
-        self.plugin.options.set('password', config.PASS)
+        self.plugin.options.set('username', USER)
+        self.plugin.options.set('password', PASS)
         self.api = self.plugin._create_api()
         self.search_candidates = None
 

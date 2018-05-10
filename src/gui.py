@@ -1,12 +1,10 @@
-import sys
+""" My kawaii curses framework
+"""
+# pylint: disable=too-few-public-methods
 import curses
-
-logfile = open('/tmp/log', 'w')
-def log(msg):
-    logfile.write(msg + '\n')
-
-
 class Value(object):
+    """ Size abstraction
+    """
     VAL_ABSOLUTE = 'absolute'
     VAL_RELATIVE = 'relative'
     VAL_TYPES = [VAL_ABSOLUTE, VAL_RELATIVE]
@@ -18,11 +16,20 @@ class Value(object):
 
 
 class BaseObject(object):
+    """ Base object which can be redrawn
+    """
+    def send_event(self, ev):
+        pass
+
     def redraw(self):
+        """ define how to draw this object
+        """
         pass
 
 
 class InputHandler(object):
+    """ Handles interaction with the App
+    """
     def __init__(self):
         self.app = None
 
@@ -35,24 +42,12 @@ class InputHandler(object):
 
 
 class App(object):
-    def __init__(self, stdscr, inputhandler=None):
+    def __init__(self, stdscr, root):
         self.stdscr = stdscr
-        if inputhandler == None:
-            inputhandler = InputHandler()
-        self.inputhandler = inputhandler
-        self.inputhandler.set_app(self)
-        self.workspaces = {}
-        self.current_workspace = None
+        self.root = root
+        self.root.set_app(self)
         self.log_widget = None
-
-    def add_workspace(self, name, root, default=False):
-        self.workspaces[name] = root
-        if default or len(self.workspaces) == 1:
-            self.current_workspace = name
-
-    def set_workspace(self, name):
-        self.current_workspace = name
-        self.workspaces[self.current_workspace].redraw()
+        self.control_object = None
 
     def set_log_widget(self, widget):
         self.log_widget = widget
@@ -63,9 +58,15 @@ class App(object):
     def clear_log(self, msg):
         self.log_widget.clear()
 
+    def set_control(self, obj):
+        self.control_object = obj
+
     def run(self):
-        self.workspaces[self.current_workspace].redraw()
-        self.inputhandler.run()
+        self.root.redraw()
+        while True:
+            ch = self.stdscr.getkey()
+            if self.control_object:
+                self.control_object.send_event(ch)
 
 
 class BaseLayout(BaseObject):
@@ -79,20 +80,36 @@ class BaseLayout(BaseObject):
         self._x = None
         self._y = None
         self.parent = parent
+        self.event_processor = {}
         self.children = []
-        # self.app = None
+        self.app = None
         if parent != None:
             self.parent.add_child(self)
 
-    # def set_app(self, app):
-    #     if self.parent:
-    #         raise Exception("You can only set app for the root")
-    #     self.app = app
+    def register_event(self, event, ev_processor):
+        """ Sets event processor which is called by the send_event
+        the processor should return true if the event
+        should be propagated"""
+        self.event_processor[event] = ev_processor
 
-    # def get_app(self):
-    #     if not self.app:
-    #         self.app = self.parent.get_app()
-    #     return self.app
+    def set_app(self, app):
+        if self.parent:
+            raise Exception("You can only set app for the root")
+        self.app = app
+
+    def get_app(self):
+        if not self.app:
+            self.app = self.parent.get_app()
+        return self.app
+
+    def send_event(self, ev):
+        ret = False
+        if ev in self.event_processor:
+            ret = self.event_processor[ev]()
+            if ret and self.parent:
+                self.parent.send_event(ev)
+        elif self.parent:
+            self.parent.send_event(ev)
 
     def add_child(self, child):
         if self.children:
@@ -268,6 +285,19 @@ class BrowserWidget(Widget):
         super().__init__(parent)
         self.children = []
         self.pos = -1
+        self.select_callback = None
+        self.register_event('j', self.down)
+        self.register_event('k', self.up)
+        self.register_event('KEY_DOWN', self.down)
+        self.register_event('KEY_UP', self.up)
+        self.register_event('\n', self.call_selection_callback)
+
+    def set_selection_callback(self, ev):
+        self.select_callback = ev
+
+    def call_selection_callback(self):
+        if self.get_selected_item() and self.select_callback:
+            self.select_callback(self.get_selected_item())
 
     def add_child(self, child):
         # if not isinstance(child, item):
