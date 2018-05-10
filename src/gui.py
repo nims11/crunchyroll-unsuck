@@ -2,6 +2,8 @@
 """
 # pylint: disable=too-few-public-methods
 import curses
+import signal
+
 class Value(object):
     """ Size abstraction
     """
@@ -49,6 +51,16 @@ class App(object):
         self.log_widget = None
         self.control_object = None
 
+    def resize(self, *args, **kwargs):
+        y, x = self.stdscr.getmaxyx()
+        if y == self.root.height.value and x == self.root.width.value:
+            return
+        curses.resizeterm(y, x)
+        self.stdscr.refresh()
+        self.root.width = Value(x)
+        self.root.height = Value(y)
+        self.root.redraw()
+
     def set_log_widget(self, widget):
         self.log_widget = widget
 
@@ -65,7 +77,9 @@ class App(object):
         self.root.redraw()
         while True:
             ch = self.stdscr.getkey()
-            if self.control_object:
+            if ch == "KEY_RESIZE":
+                self.resize()
+            elif self.control_object:
                 self.control_object.send_event(ch)
 
 
