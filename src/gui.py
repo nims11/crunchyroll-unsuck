@@ -323,6 +323,7 @@ class BrowserWidget(Widget):
         for idx, child in enumerate(self.children[start:start+self._height]):
             child.compute_dimensions(1, self._width, self._x, idx + self._y)
             child.redraw()
+        curses.doupdate()
 
     def up(self):
         if self.pos > 0:
