@@ -115,7 +115,7 @@ class MyApp(App):
         self.log('Fetched %d episodes' % len(collections))
 
         self.log('Fetching episodes...')
-        episodes = api.list_media(series_id=anime['series']['series_id'], sort='desc', limit=50)
+        episodes = api.list_media(series_id=anime['series']['series_id'], sort='desc', limit=1000)
         self.log('Fetched %d episodes' % len(episodes))
         episode_item_text = []
         for episode in episodes:
