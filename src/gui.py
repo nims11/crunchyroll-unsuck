@@ -50,6 +50,7 @@ class App(object):
         self.root.set_app(self)
         self.log_widget = None
         self.control_object = None
+        self.callbacks = {}
 
     def resize(self, *args, **kwargs):
         y, x = self.stdscr.getmaxyx()
@@ -72,6 +73,8 @@ class App(object):
 
     def set_control(self, obj):
         self.control_object = obj
+        for callback in self.callbacks.get('on_set_control', []):
+            callback()
 
     def run(self):
         self.root.redraw()
@@ -81,6 +84,11 @@ class App(object):
                 self.resize()
             elif self.control_object:
                 self.control_object.send_event(ch)
+
+    def register_callback(self, event, callback):
+        if event not in self.callbacks:
+            self.callbacks[event] = []
+        self.callbacks[event].append(callback)
 
 
 class BaseLayout(BaseObject):
@@ -97,6 +105,7 @@ class BaseLayout(BaseObject):
         self.event_processor = {}
         self.children = []
         self.app = None
+        self.focused = True
         if parent != None:
             self.parent.add_child(self)
 
@@ -161,6 +170,16 @@ class BaseLayout(BaseObject):
         for child in self.children:
             child.compute_dimensions(self._height, self._width, self._x, self._y)
             child.redraw()
+
+    def focus(self):
+        self.focused = True
+        for child in self.children:
+            child.focus()
+
+    def unfocus(self):
+        self.focused = False
+        for child in self.children:
+            child.unfocus()
 
 
 class StackedLayout(BaseLayout):
@@ -272,23 +291,26 @@ class ItemWidget(Widget):
     def __init__(self, parent, text, data=None):
         super().__init__(parent)
         self.text = text
-        self._focus = False
+        self._selected = False
         self.data = data
 
     def redraw(self):
         window = curses.newwin(self._height, self._width, self._y, self._x)
-        if self._focus:
-            window.bkgd(' ', curses.A_REVERSE)
-            window.addstr(0, 0, self.get_display_text(self.text, self._width - 4), curses.A_REVERSE)
+        if self._selected:
+            attr = curses.A_REVERSE
+            if not self.focused:
+                attr |= curses.A_DIM
+            window.bkgd(' ', attr)
+            window.addstr(0, 0, self.get_display_text(self.text, self._width - 4), attr)
         else:
-            window.addstr(0, 0, self.get_display_text(self.text, self._width - 4))
+            window.addstr(0, 0, self.get_display_text(self.text, self._width - 4), curses.A_NORMAL if self.focused else curses.A_DIM)
         window.refresh()
 
-    def focus(self):
-        self._focus = True
+    def select(self):
+        self._selected = True
 
-    def unfocus(self):
-        self._focus = False
+    def unselect(self):
+        self._selected = False
 
     def get_data(self):
         return self.data
@@ -331,7 +353,7 @@ class BrowserWidget(Widget):
         else:
             return
 
-        self.children[self.pos].focus()
+        self.children[self.pos].select()
         extra_padding = int(0.5 * self._height)
         start = max(min(len(self.children) - self._height, self.pos - extra_padding), 0)
         for idx, child in enumerate(self.children[start:start+self._height]):
@@ -341,13 +363,13 @@ class BrowserWidget(Widget):
 
     def up(self):
         if self.pos > 0:
-            self.children[self.pos].unfocus()
+            self.children[self.pos].unselect()
             self.pos -= 1
             self.redraw()
 
     def down(self):
         if self.pos < len(self.children) - 1:
-            self.children[self.pos].unfocus()
+            self.children[self.pos].unselect()
             self.pos += 1
             self.redraw()
 

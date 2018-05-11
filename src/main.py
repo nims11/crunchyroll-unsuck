@@ -6,24 +6,46 @@ from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, LogWid
 from gui import BaseLayout, HorizontalLayout, VerticalLayout, Value, App
 from api.crunchyroll import CrunchyrollAPI
 
-stdscr = curses.initscr()
 api = CrunchyrollAPI()
 
 
 def generate_control_switch(lst, active=0):
     cur_control_idx = active
+    lst_dict = {}
+    for idx, (key, obj) in enumerate(lst):
+        obj.unfocus()
+        lst_dict[key] = idx
+        lst[idx] = obj
+    lst[active].focus()
 
     def _next_switch():
         nonlocal cur_control_idx
+        lst[cur_control_idx].unfocus()
+        lst[cur_control_idx].redraw()
         cur_control_idx = (cur_control_idx + 1) % len(lst)
+        lst[cur_control_idx].focus()
+        lst[cur_control_idx].redraw()
         lst[cur_control_idx].get_app().set_control(lst[cur_control_idx])
 
     def _prev_switch():
         nonlocal cur_control_idx
+        lst[cur_control_idx].unfocus()
+        lst[cur_control_idx].redraw()
         cur_control_idx = (cur_control_idx - 1 + len(lst)) % len(lst)
+        lst[cur_control_idx].focus()
+        lst[cur_control_idx].redraw()
         lst[cur_control_idx].get_app().set_control(lst[cur_control_idx])
 
-    return _prev_switch, _next_switch
+    def _switch_to(key):
+        nonlocal cur_control_idx
+        lst[cur_control_idx].unfocus()
+        lst[cur_control_idx].redraw()
+        cur_control_idx = lst_dict[key]
+        lst[cur_control_idx].focus()
+        lst[cur_control_idx].redraw()
+        lst[cur_control_idx].get_app().set_control(lst[cur_control_idx])
+
+    return _prev_switch, _next_switch, _switch_to
 
 
 class MyApp(App):
@@ -50,11 +72,11 @@ class MyApp(App):
 
         # Register events
         root.register_event('q', sys.exit)
-        prev_switch, next_switch = generate_control_switch([lst1, lst2], active=0)
-        l1.register_event('l', next_switch)
-        l1.register_event('KEY_RIGHT', next_switch)
-        l1.register_event('h', prev_switch)
-        l1.register_event('KEY_LEFT', prev_switch)
+        self.prev_switch, self.next_switch, self.switch_to = generate_control_switch([('anime', lst1), ('episodes', lst2)], active=0)
+        l1.register_event('l', self.next_switch)
+        l1.register_event('KEY_RIGHT', self.next_switch)
+        l1.register_event('h', self.prev_switch)
+        l1.register_event('KEY_LEFT', self.prev_switch)
         lst1.set_selection_callback(self.list_episodes)
         lst2.set_selection_callback(self.open_episode)
         self.anime_list_widget = lst1
@@ -96,8 +118,10 @@ class MyApp(App):
         self.episode_list_widget.clear_children()
         for episode_text, episode in zip(episode_item_text, episodes):
             ItemWidget(self.episode_list_widget, episode_text, episode)
-        self.episode_list_widget.redraw()
-        self.set_control(self.episode_list_widget)
+
+        self.switch_to('episodes')
+        # self.episode_list_widget.redraw()
+        # self.set_control(self.episode_list_widget)
 
     def open_episode(self, selected_item):
         episode = selected_item.get_data()
@@ -112,6 +136,8 @@ class MyApp(App):
         p.wait()
 
 def main(stdscr):
+    stdscr = curses.initscr()
+    curses.start_color()
     curses.curs_set(0)
     stdscr.keypad(True)
     curses.use_default_colors()
