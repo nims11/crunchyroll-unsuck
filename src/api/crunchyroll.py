@@ -32,6 +32,23 @@ class CrunchyrollAPI(object):
         return self.api._api_call("list_series", params)
 
 
+    def list_collections(self, series_id, sort=None, limit=None, offset=None):
+        """ Returns a list of collections for a given series
+        """
+        params = {
+            "series_id": series_id,
+        }
+
+        if sort:
+            params["sort"] = sort
+        if limit:
+            params["limit"] = limit
+        if offset:
+            params["offset"] = offset
+
+        return self.api._api_call("list_collections", params)
+
+
     def list_media(self, series_id, sort=None, limit=None, offset=None, locale=None):
         """ Returns a list of media for a given series
         """

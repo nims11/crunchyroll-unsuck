@@ -2,7 +2,7 @@ import sys
 import subprocess
 import curses
 import os
-from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, LogWidget
+from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, LogWidget, InactiveItemWidget
 from gui import BaseLayout, HorizontalLayout, VerticalLayout, Value, App
 from api.crunchyroll import CrunchyrollAPI
 
@@ -107,6 +107,13 @@ class MyApp(App):
 
     def list_episodes(self, selected_item):
         anime = selected_item.get_data()
+
+        self.log('Fetching collections...')
+        collections = api.list_collections(series_id=anime['series']['series_id'], limit=50)
+        collections = {c['collection_id']: c['name'] for c in collections}
+        self.log(str(collections))
+        self.log('Fetched %d episodes' % len(collections))
+
         self.log('Fetching episodes...')
         episodes = api.list_media(series_id=anime['series']['series_id'], sort='desc', limit=50)
         self.log('Fetched %d episodes' % len(episodes))
@@ -116,7 +123,12 @@ class MyApp(App):
         episode_item_text = self.tablize(episode_item_text, 5)
 
         self.episode_list_widget.clear_children()
+        current_collection = None
         for episode_text, episode in zip(episode_item_text, episodes):
+            if episode['collection_id'] != current_collection:
+                current_collection = episode['collection_id']
+                if current_collection in collections:
+                    InactiveItemWidget(self.episode_list_widget, collections[current_collection])
             ItemWidget(self.episode_list_widget, episode_text, episode)
 
         self.switch_to('episodes')

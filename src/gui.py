@@ -287,6 +287,17 @@ class ContainerWidget(Widget):
             child.redraw()
 
 
+class InactiveItemWidget(Widget):
+    def __init__(self, parent, text):
+        super().__init__(parent)
+        self.text = text
+
+    def redraw(self):
+        window = curses.newwin(self._height, self._width, self._y, self._x)
+        window.addstr(0, 0, self.get_display_text(self.text, self._width - 4).center(self._width - 1, '-'), curses.A_NORMAL if self.focused else curses.A_DIM)
+        window.refresh()
+
+
 class ItemWidget(Widget):
     def __init__(self, parent, text, data=None):
         super().__init__(parent)
@@ -336,8 +347,6 @@ class BrowserWidget(Widget):
             self.select_callback(self.get_selected_item())
 
     def add_child(self, child):
-        # if not isinstance(child, item):
-        #     raise Exception("ContainerWidget cannot have more than one children")
         self.children.append(child)
 
     def clear_children(self):
@@ -347,13 +356,14 @@ class BrowserWidget(Widget):
     def redraw(self):
         window = curses.newwin(self._height, self._width, self._y, self._x)
         window.refresh()
-        if len(self.children) > 0:
-            if self.pos < 0:
-                self.pos = 0
-        else:
-            return
+        if self.pos < 0:
+            for idx, child in enumerate(self.children):
+                if isinstance(child, ItemWidget):
+                    self.pos = idx
+                    break
 
-        self.children[self.pos].select()
+        if self.pos >= 0:
+            self.children[self.pos].select()
         extra_padding = int(0.5 * self._height)
         start = max(min(len(self.children) - self._height, self.pos - extra_padding), 0)
         for idx, child in enumerate(self.children[start:start+self._height]):
@@ -362,15 +372,21 @@ class BrowserWidget(Widget):
         curses.doupdate()
 
     def up(self):
-        if self.pos > 0:
+        next_pos = self.pos - 1
+        while next_pos >= 0 and not isinstance(self.children[next_pos], ItemWidget):
+            next_pos -= 1
+        if next_pos >= 0:
             self.children[self.pos].unselect()
-            self.pos -= 1
+            self.pos = next_pos
             self.redraw()
 
     def down(self):
-        if self.pos < len(self.children) - 1:
+        next_pos = self.pos + 1
+        while next_pos < len(self.children) and not isinstance(self.children[next_pos], ItemWidget):
+            next_pos += 1
+        if next_pos < len(self.children):
             self.children[self.pos].unselect()
-            self.pos += 1
+            self.pos = next_pos
             self.redraw()
 
     def get_selected_item(self):
