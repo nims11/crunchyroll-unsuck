@@ -259,11 +259,13 @@ class DummyWidget(Widget):
 
 
 class ContainerWidget(Widget):
-    def __init__(self, parent, border=False, title=None):
+    def __init__(self, parent, border=False, title=None, center=False, style=curses.A_NORMAL):
         super().__init__(parent)
         self.window = None
         self.title = title
         self.border = border
+        self.style = style
+        self.center = center
 
     def add_child(self, child):
         if self.children:
@@ -276,12 +278,20 @@ class ContainerWidget(Widget):
         self.window = curses.newwin(self._height, self._width, self._y, self._x)
         if self.border:
             self.window.border()
-        self.window.addstr(0, 0, self.title)
+
+        if self.title:
+            if self.center:
+                centered_text = self.title.center(self._width, ' ')
+                self.window.addstr(0, (len(centered_text) - len(self.title))//2, self.title, self.style)
+            else:
+                self.window.addstr(0, 0, self.title, self.style)
         self.window.refresh()
 
         for child in self.children:
-            if self.border or self.title:
+            if self.border:
                 child.compute_dimensions(self._height-2, self._width-2, self._x+1, self._y + 1)
+            elif self.title:
+                child.compute_dimensions(self._height-1, self._width-1, self._x, self._y + 1)
             else:
                 child.compute_dimensions(self._height, self._width, self._x, self._y)
             child.redraw()

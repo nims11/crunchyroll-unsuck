@@ -5,6 +5,7 @@ import os
 from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, LogWidget, InactiveItemWidget
 from gui import BaseLayout, HorizontalLayout, VerticalLayout, Value, App
 from api.crunchyroll import CrunchyrollAPI
+import constants
 
 api = CrunchyrollAPI()
 
@@ -52,7 +53,7 @@ class MyApp(App):
     def __init__(self, stdscr):
         root = BaseLayout(Value(curses.COLS), Value(curses.LINES), None)
 
-        main_container = ContainerWidget(root, True, constants.APP_NAME)
+        main_container = ContainerWidget(root, False, constants.APP_NAME + ' v' + constants.APP_VERSION, center=True, style=(curses.A_BOLD|curses.A_UNDERLINE))
         l4 = VerticalLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), main_container)
 
         l1 = HorizontalLayout(Value(1, Value.VAL_RELATIVE), Value(0.8, Value.VAL_RELATIVE), l4)
@@ -132,8 +133,6 @@ class MyApp(App):
             ItemWidget(self.episode_list_widget, episode_text, episode)
 
         self.switch_to('episodes')
-        # self.episode_list_widget.redraw()
-        # self.set_control(self.episode_list_widget)
 
     def open_episode(self, selected_item):
         episode = selected_item.get_data()
