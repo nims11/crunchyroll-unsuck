@@ -309,11 +309,12 @@ class InactiveItemWidget(Widget):
 
 
 class ItemWidget(Widget):
-    def __init__(self, parent, text, data=None):
-        super().__init__(parent)
+    def __init__(self, parent, text, data=None, default=False):
         self.text = text
         self._selected = False
         self.data = data
+        self.default = default
+        super().__init__(parent)
 
     def redraw(self):
         window = curses.newwin(self._height, self._width, self._y, self._x)
@@ -358,6 +359,8 @@ class BrowserWidget(Widget):
 
     def add_child(self, child):
         self.children.append(child)
+        if isinstance(child, ItemWidget) and child.default and self.pos < 0:
+            self.pos = len(self.children) - 1
 
     def clear_children(self):
         self.children = []

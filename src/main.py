@@ -119,7 +119,12 @@ class MyApp(App):
         episodes = api.list_media(series_id=anime['series']['series_id'], sort='desc', limit=1000)
         self.log('Fetched %d episodes' % len(episodes))
         episode_item_text = []
+        latest_accessed_episode = None
+        latest_accessed_episode_time = 0
         for episode in episodes:
+            last_access_time = constants.get_last_accessed('CR-'+episode['media_id'])
+            if last_access_time > latest_accessed_episode_time:
+                latest_accessed_episode, latest_accessed_episode_time = episode, last_access_time
             episode_item_text.append((episode['episode_number'], episode['name']))
         episode_item_text = self.tablize(episode_item_text, 5)
 
@@ -130,15 +135,17 @@ class MyApp(App):
                 current_collection = episode['collection_id']
                 if current_collection in collections:
                     InactiveItemWidget(self.episode_list_widget, collections[current_collection])
-            ItemWidget(self.episode_list_widget, episode_text, episode)
+            ItemWidget(self.episode_list_widget, episode_text, episode, default=(episode == latest_accessed_episode))
 
         self.switch_to('episodes')
 
     def open_episode(self, selected_item):
         episode = selected_item.get_data()
+        mpv_args = ("--start=%d " % max(0, constants.get_playhead('CR-'+episode['media_id']) - 5)) + \
+            "--term-status-msg \"Playback Status: ${{=time-pos}} ${{=duration}} \" {filename}"
         args = [
             'streamlink', episode['url'], 'best', '--verbose-player', "-a",
-            "--term-status-msg \"Playback Status: ${{=time-pos}} ${{=duration}} \" {filename}"
+            mpv_args
         ]
         p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         self.log('$ ' + ' '.join(args))
