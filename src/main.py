@@ -138,12 +138,20 @@ class MyApp(App):
         episode = selected_item.get_data()
         args = [
             'streamlink', episode['url'], 'best', '--verbose-player', "-a",
-            "--term-status-msg \"Playback Status: ${{time-pos}}\" {filename}"
+            "--term-status-msg \"Playback Status: ${{=time-pos}} ${{=duration}} \" {filename}"
         ]
         p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         self.log('$ ' + ' '.join(args))
+
+        playhead = None
         for line in p.stdout:
-            self.log(line.decode())
+            line = line.decode().strip()
+            if line[:16] == 'Playback Status:':
+                playhead, total_time = [float(x) for x in line.split()[-2:]]
+            self.log(line)
+
+        if playhead:
+            constants.update_history('CR-' + episode['media_id'], playhead, total_time)
         p.wait()
 
 def main(stdscr):
