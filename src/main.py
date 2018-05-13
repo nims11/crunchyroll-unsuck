@@ -52,13 +52,14 @@ class MyApp(App):
     def __init__(self, stdscr):
         root = BaseLayout(Value(curses.COLS), Value(curses.LINES), None)
 
-        l4 = VerticalLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), root)
+        main_container = ContainerWidget(root, True, constants.APP_NAME)
+        l4 = VerticalLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), main_container)
 
         l1 = HorizontalLayout(Value(1, Value.VAL_RELATIVE), Value(0.8, Value.VAL_RELATIVE), l4)
         l2 = BaseLayout(Value(0.3, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), l1)
-        l3 = BaseLayout(Value(0.7, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), l1)
+        l3 = BaseLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), l1)
 
-        l5 = BaseLayout(Value(1, Value.VAL_RELATIVE), Value(0.2, Value.VAL_RELATIVE), l4)
+        l5 = BaseLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), l4)
         c3 = ContainerWidget(l5, True, "Log")
 
         c1 = ContainerWidget(l2, True, "Anime")
@@ -111,7 +112,6 @@ class MyApp(App):
         self.log('Fetching collections...')
         collections = api.list_collections(series_id=anime['series']['series_id'], limit=50)
         collections = {c['collection_id']: c['name'] for c in collections}
-        self.log(str(collections))
         self.log('Fetched %d episodes' % len(collections))
 
         self.log('Fetching episodes...')

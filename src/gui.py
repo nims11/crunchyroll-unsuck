@@ -200,7 +200,7 @@ class HorizontalLayout(StackedLayout):
             self.compute_dimensions()
         cumulative_width = 0
         for child in self.children:
-            child.compute_dimensions(self._height, self._width, self._x + cumulative_width, self._y)
+            child.compute_dimensions(self._height, self._width - cumulative_width, self._x + cumulative_width, self._y)
             child.redraw()
             cumulative_width += child._width
 
@@ -213,7 +213,7 @@ class VerticalLayout(StackedLayout):
             self.compute_dimensions()
         cumulative_height = 0
         for child in self.children:
-            child.compute_dimensions(self._height, self._width, self._x, self._y + cumulative_height)
+            child.compute_dimensions(self._height - cumulative_height, self._width, self._x, self._y + cumulative_height)
             child.redraw()
             cumulative_height += child._height
 
