@@ -156,9 +156,13 @@ class BaseLayout(BaseObject):
 
         if self.height.type == Value.VAL_ABSOLUTE:
             self._height = int(self.height.value)
+            if self._height < 0:
+                self._height += parent_height
 
         if self.width.type == Value.VAL_ABSOLUTE:
             self._width = int(self.width.value)
+            if self._width < 0:
+                self._width += parent_width
 
         if self.parent is not None:
             if self.height.type == Value.VAL_RELATIVE:
