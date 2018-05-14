@@ -115,6 +115,10 @@ class BaseLayout(BaseObject):
         should be propagated"""
         self.event_processor[event] = ev_processor
 
+    def unregister_event(self, event, ev_processor):
+        if event in self.event_processor:
+            del self.event_processor[event]
+
     def set_app(self, app):
         if self.parent:
             raise Exception("You can only set app for the root")
@@ -428,4 +432,30 @@ class LogWidget(Widget):
         window = curses.newwin(self._height, self._width, self._y, self._x)
         for idx, line in enumerate(self.lines[-self._height:]):
             window.addnstr(idx, 0, self.get_display_text(line, self._width - 4), self._width)
+        window.refresh()
+
+
+class ShortcutWidget(Widget):
+    def __init__(self, parent, event_parent, shortcuts=[]):
+        super().__init__(parent)
+        self.shortcuts = []
+        self.event_parent = event_parent
+        self.replace_shortcuts(shortcuts)
+
+    def replace_shortcuts(self, shortcuts):
+        for (shortcut, _, _) in self.shortcuts:
+            self.event_parent.unregister_event(shortcut)
+        self.shortcuts = shortcuts
+        for (shortcut, description, callback) in self.shortcuts:
+            self.event_parent.register_event(shortcut, callback)
+
+    def redraw(self):
+        window = curses.newwin(self._height, self._width, self._y, self._x)
+        display_text = ''
+        for shortcut, description, callback in self.shortcuts:
+            if len(display_text + shortcut + ':' + description) <= self._width:
+                display_text += shortcut + ':' + description + '  '
+            else:
+                break
+        window.addnstr(0, 0, display_text.strip(), self._width)
         window.refresh()
