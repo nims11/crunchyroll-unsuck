@@ -3,11 +3,106 @@ import subprocess
 import curses
 import os
 from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, LogWidget, InactiveItemWidget
+from gui import ShortcutWidget
 from gui import BaseLayout, HorizontalLayout, VerticalLayout, Value, App
 from api.crunchyroll import CrunchyrollAPI
 import constants
 
 api = CrunchyrollAPI()
+
+class Episode(object):
+    def get_id(self):
+        """ ID used in cache files
+        """
+        pass
+
+    def open(self):
+        """ opens the episode and sets the playhead
+        """
+        pass
+
+    def get_episode_number(self):
+        pass
+
+    def get_name(self):
+        pass
+
+    def get_collection(self):
+        pass
+
+
+class CREpisode(Episode):
+    def __init__(self, data):
+        self.data = data
+
+    def get_id(self):
+        return 'CR-' + self.data['media_id']
+
+    def open(self, log=(lambda x:None)):
+        mpv_args = ("--start=%d " % max(0, constants.get_playhead(self.get_id()) - 5)) + \
+            "--term-status-msg \"Playback Status: ${{=time-pos}} ${{=duration}} \" {filename}"
+        args = [
+            'streamlink', self.data['url'], 'best', '--verbose-player', "-a",
+            mpv_args
+        ]
+        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        log('$ ' + ' '.join(args))
+        playhead = None
+        for line in p.stdout:
+            line = line.decode().strip()
+            if line[:16] == 'Playback Status:':
+                playhead, total_time = [float(x) for x in line.split()[-2:]]
+            log(line)
+
+        if playhead:
+            constants.update_history(self.get_id(), playhead, total_time)
+        p.wait()
+
+    def get_episode_number(self):
+        return self.data['episode_number']
+
+    def get_name(self):
+        return self.data['name']
+
+    def get_collection(self):
+        return self.data.get('collection_id', None)
+
+
+class Anime(object):
+    def get_id(self):
+        pass
+
+    def get_episodes(self):
+        """ returns [(collection, [episodes...])...]
+        """
+        pass
+
+    def get_name(self):
+        pass
+
+
+class CRAnime(object):
+    def __init__(self, data):
+        self.data = data
+
+    def get_id(self):
+        return 'CR-' + self.data['series_id']
+
+    def get_episodes(self, log=(lambda x:None)):
+        log('Fetching episodes...')
+        episodes = [CREpisode(episode) for episode in api.list_media(series_id=self.data['series_id'], sort='desc', limit=1000)]
+        log('Fetched %d episodes' % len(episodes))
+        return episodes
+
+    def get_collections(self, log=(lambda x:None)):
+        log('Fetching collections...')
+        collections = api.list_collections(series_id=self.data['series_id'], limit=50)
+        collections = {c['collection_id']: c['name'] for c in collections}
+        log('Fetched %d collections' % len(collections))
+        return collections
+
+    def get_name(self):
+        return self.data['name']
 
 
 def generate_control_switch(lst, active=0):
@@ -52,25 +147,33 @@ def generate_control_switch(lst, active=0):
 class MyApp(App):
     def __init__(self, stdscr):
         root = BaseLayout(Value(curses.COLS), Value(curses.LINES), None)
+        super().__init__(stdscr, root)
 
         main_container = ContainerWidget(root, False, constants.APP_NAME + ' v' + constants.APP_VERSION, center=True, style=(curses.A_BOLD|curses.A_UNDERLINE))
         l4 = VerticalLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), main_container)
 
         l1 = HorizontalLayout(Value(1, Value.VAL_RELATIVE), Value(0.8, Value.VAL_RELATIVE), l4)
         l2 = BaseLayout(Value(0.3, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), l1)
-        l3 = BaseLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), l1)
 
-        l5 = BaseLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), l4)
+        l5 = BaseLayout(Value(1, Value.VAL_RELATIVE), Value(-1, Value.VAL_ABSOLUTE), l4)
         c3 = ContainerWidget(l5, True, "Log")
 
         c1 = ContainerWidget(l2, True, "Anime")
-        c2 = ContainerWidget(l3, True, "Episodes")
+        c2 = ContainerWidget(l1, True, "Episodes")
         lst1 = BrowserWidget(c1)
         lst2 = BrowserWidget(c2)
 
-        anime_queue = api.get_queue('anime')
+
+        self.anime_view_shortcuts = [
+            ('s', 'sort', sys.exit),
+            ('d', 'delete', sys.exit),
+            ('q', 'exit', sys.exit),
+        ]
+        s1 = ShortcutWidget(l4, c1, self.anime_view_shortcuts)
+
+        anime_queue = [CRAnime(anime['series']) for anime in api.get_queue('anime')]
         for anime in anime_queue:
-            ItemWidget(lst1, anime['series']['name'], anime)
+            ItemWidget(lst1, anime.get_name(), anime)
 
         # Register events
         root.register_event('q', sys.exit)
@@ -83,8 +186,9 @@ class MyApp(App):
         lst2.set_selection_callback(self.open_episode)
         self.anime_list_widget = lst1
         self.episode_list_widget = lst2
+        self.directory_container = c1
+        self.episode_container = c2
 
-        super().__init__(stdscr, root)
         self.set_log_widget(LogWidget(c3))
         self.set_control(lst1)
 
@@ -109,30 +213,24 @@ class MyApp(App):
 
     def list_episodes(self, selected_item):
         anime = selected_item.get_data()
+        episodes = anime.get_episodes(self.log)
+        collections = anime.get_collections(self.log)
 
-        self.log('Fetching collections...')
-        collections = api.list_collections(series_id=anime['series']['series_id'], limit=50)
-        collections = {c['collection_id']: c['name'] for c in collections}
-        self.log('Fetched %d episodes' % len(collections))
-
-        self.log('Fetching episodes...')
-        episodes = api.list_media(series_id=anime['series']['series_id'], sort='desc', limit=1000)
-        self.log('Fetched %d episodes' % len(episodes))
         episode_item_text = []
         latest_accessed_episode = None
         latest_accessed_episode_time = 0
         for episode in episodes:
-            last_access_time = constants.get_last_accessed('CR-'+episode['media_id'])
+            last_access_time = constants.get_last_accessed(episode.get_id())
             if last_access_time > latest_accessed_episode_time:
                 latest_accessed_episode, latest_accessed_episode_time = episode, last_access_time
-            episode_item_text.append((episode['episode_number'], episode['name']))
+            episode_item_text.append((episode.get_episode_number(), episode.get_name()))
         episode_item_text = self.tablize(episode_item_text, 5)
 
         self.episode_list_widget.clear_children()
         current_collection = None
         for episode_text, episode in zip(episode_item_text, episodes):
-            if episode['collection_id'] != current_collection:
-                current_collection = episode['collection_id']
+            if episode.get_collection() != current_collection:
+                current_collection = episode.get_collection()
                 if current_collection in collections:
                     InactiveItemWidget(self.episode_list_widget, collections[current_collection])
             ItemWidget(self.episode_list_widget, episode_text, episode, default=(episode == latest_accessed_episode))
@@ -141,25 +239,8 @@ class MyApp(App):
 
     def open_episode(self, selected_item):
         episode = selected_item.get_data()
-        mpv_args = ("--start=%d " % max(0, constants.get_playhead('CR-'+episode['media_id']) - 5)) + \
-            "--term-status-msg \"Playback Status: ${{=time-pos}} ${{=duration}} \" {filename}"
-        args = [
-            'streamlink', episode['url'], 'best', '--verbose-player', "-a",
-            mpv_args
-        ]
-        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        self.log('$ ' + ' '.join(args))
+        episode.open(self.log)
 
-        playhead = None
-        for line in p.stdout:
-            line = line.decode().strip()
-            if line[:16] == 'Playback Status:':
-                playhead, total_time = [float(x) for x in line.split()[-2:]]
-            self.log(line)
-
-        if playhead:
-            constants.update_history('CR-' + episode['media_id'], playhead, total_time)
-        p.wait()
 
 def main(stdscr):
     stdscr = curses.initscr()
