@@ -15,7 +15,6 @@ class CrunchyrollAPI(object):
         self.api = self.plugin._create_api()
         self.search_candidates = None
 
-
     def list_series(self, media_type, filter, limit=None, offset=None):
         """ Returns a list of series given filter constraints
         """
@@ -30,7 +29,6 @@ class CrunchyrollAPI(object):
             params["offset"] = offset
 
         return self.api._api_call("list_series", params)
-
 
     def list_collections(self, series_id, sort=None, limit=None, offset=None):
         """ Returns a list of collections for a given series
@@ -47,7 +45,6 @@ class CrunchyrollAPI(object):
             params["offset"] = offset
 
         return self.api._api_call("list_collections", params)
-
 
     def list_media(self, series_id, sort=None, limit=None, offset=None, locale=None):
         """ Returns a list of media for a given series
@@ -67,7 +64,6 @@ class CrunchyrollAPI(object):
 
         return self.api._api_call("list_media", params)
 
-
     def list_search_candidates(self):
         """ Returns a list of search candidates (Series)
         """
@@ -75,7 +71,6 @@ class CrunchyrollAPI(object):
         data = json.loads(res.text[len('/*-secure-'):-len('*/')])['data']
         series = [elt for elt in data if elt['type'] == 'Series']
         return series
-
 
     def get_queue(self, media_types, fields=None):
         """ Return queue
@@ -89,7 +84,6 @@ class CrunchyrollAPI(object):
 
         return self.api._api_call("queue", params)
 
-
     def search(self, search_term):
         results = []
         if self.search_candidates == None:
@@ -101,3 +95,9 @@ class CrunchyrollAPI(object):
                 results.append(series)
 
         return results
+
+    def remove_from_queue(self, series_id):
+        params = {
+            "series_id": series_id
+        }
+        return self.api._api_call("remove_from_queue", params)

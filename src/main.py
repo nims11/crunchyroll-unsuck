@@ -9,6 +9,7 @@ from api.crunchyroll import CrunchyrollAPI
 import constants
 
 api = CrunchyrollAPI()
+logger = lambda x: None
 
 class Episode(object):
     def get_id(self):
@@ -81,7 +82,7 @@ class Anime(object):
         pass
 
 
-class CRAnime(object):
+class CRAnime(Anime):
     def __init__(self, data):
         self.data = data
 
@@ -103,6 +104,44 @@ class CRAnime(object):
 
     def get_name(self):
         return self.data['name']
+
+
+class Directory(object):
+    def __init__(self, name, parent=None):
+        self.name = name
+        self.parent = parent
+        self.children = []
+        if parent:
+            self.parent.add_child(self)
+
+    def get_name(self):
+        return self.name
+
+    def get_content(self):
+        return self.children
+
+    def get_parent(self):
+        return self.parent
+
+    def add_child(self, child):
+        child.parent = self
+        self.children.append(child)
+
+    def delete_entry(self, child):
+        pass
+
+
+class CRQueueDirectory(Directory):
+    def __init__(self, name, parent=None):
+        super().__init__(name)
+        if parent:
+            parent.add_child(self)
+
+    def get_content(self):
+        return [CRAnime(anime['series']) for anime in api.get_queue('anime')]
+
+    def delete_entry(self, anime):
+        return api.remove_from_queue(anime.data['series_id'])
 
 
 def generate_control_switch(lst, active=0):
@@ -146,6 +185,8 @@ def generate_control_switch(lst, active=0):
 
 class MyApp(App):
     def __init__(self, stdscr):
+        global logger
+        logger = self.log
         root = BaseLayout(Value(curses.COLS), Value(curses.LINES), None)
         super().__init__(stdscr, root)
 
@@ -162,35 +203,36 @@ class MyApp(App):
         c2 = ContainerWidget(l1, True, "Episodes")
         lst1 = BrowserWidget(c1)
         lst2 = BrowserWidget(c2)
-
-
-        self.anime_view_shortcuts = [
-            ('s', 'sort', sys.exit),
-            ('d', 'delete', sys.exit),
-            ('q', 'exit', sys.exit),
-        ]
-        s1 = ShortcutWidget(l4, c1, self.anime_view_shortcuts)
-
-        anime_queue = [CRAnime(anime['series']) for anime in api.get_queue('anime')]
-        for anime in anime_queue:
-            ItemWidget(lst1, anime.get_name(), anime)
-
-        # Register events
-        root.register_event('q', sys.exit)
-        self.prev_switch, self.next_switch, self.switch_to = generate_control_switch([('anime', lst1), ('episodes', lst2)], active=0)
-        l1.register_event('l', self.next_switch)
-        l1.register_event('KEY_RIGHT', self.next_switch)
-        l1.register_event('h', self.prev_switch)
-        l1.register_event('KEY_LEFT', self.prev_switch)
-        lst1.set_selection_callback(self.list_episodes)
-        lst2.set_selection_callback(self.open_episode)
         self.anime_list_widget = lst1
         self.episode_list_widget = lst2
         self.directory_container = c1
         self.episode_container = c2
 
+        self.anime_view_shortcuts = [
+            ('s', 'sort', sys.exit),
+            ('d', 'delete', self.delete_entry),
+            ('q', 'exit', lambda _: sys.exit()),
+        ]
+        s1 = ShortcutWidget(l4, lst1, self.anime_view_shortcuts)
+
+        self.init_directories()
+        # Register events
+        root.register_event('q', lambda _: sys.exit())
+        self.prev_switch, self.next_switch, self.switch_to = generate_control_switch([('anime', lst1), ('episodes', lst2)], active=0)
+        l1.register_event('l', lambda _: self.next_switch())
+        l1.register_event('KEY_RIGHT', lambda _: self.next_switch())
+        l1.register_event('h', lambda _: self.prev_switch())
+        l1.register_event('KEY_LEFT', lambda _: self.prev_switch())
+        lst1.register_event('\n', self.list_content)
+        lst2.register_event('\n', self.open_episode)
         self.set_log_widget(LogWidget(c3))
         self.set_control(lst1)
+
+    def init_directories(self):
+        self.root_directory = Directory('')
+        CRQueueDirectory('CR Queue', self.root_directory)
+        for content in self.root_directory.get_content():
+            ItemWidget(self.anime_list_widget, content.get_name(), content)
 
     def tablize(self, rows, extra_padding):
         ret = []
@@ -211,8 +253,21 @@ class MyApp(App):
 
         return ret
 
-    def list_episodes(self, selected_item):
-        anime = selected_item.get_data()
+    def list_content(self, widget):
+        item = widget.get_selected_item()
+        if item:
+            item = item.get_data()
+            if isinstance(item, Anime):
+                self.list_episodes(item)
+            elif isinstance(item, Directory):
+                self.anime_list_widget.clear_children()
+                self.anime_list_widget.set_data(item)
+                self.log("Loading queue")
+                for content in item.get_content():
+                    ItemWidget(self.anime_list_widget, content.get_name(), content)
+                self.anime_list_widget.redraw()
+
+    def list_episodes(self, anime):
         episodes = anime.get_episodes(self.log)
         collections = anime.get_collections(self.log)
 
@@ -237,9 +292,23 @@ class MyApp(App):
 
         self.switch_to('episodes')
 
-    def open_episode(self, selected_item):
-        episode = selected_item.get_data()
-        episode.open(self.log)
+    def open_episode(self, widget):
+        item = widget.get_selected_item()
+        if item:
+            episode = item.get_data()
+            episode.open(self.log)
+
+    def delete_entry(self, widget):
+        item = widget.get_selected_item()
+        if item:
+            entry_to_remove = item.get_data()
+            directory_to_remove_from = widget.get_data()
+            if directory_to_remove_from.delete_entry(entry_to_remove):
+                logger("Successfully removed from the queue")
+                widget.remove_selected()
+                widget.redraw()
+            else:
+                logger("Error removing from the queue")
 
 
 def main(stdscr):

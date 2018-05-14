@@ -132,7 +132,7 @@ class BaseLayout(BaseObject):
     def send_event(self, ev):
         ret = False
         if ev in self.event_processor:
-            ret = self.event_processor[ev]()
+            ret = self.event_processor[ev](self)
             if ret and self.parent:
                 self.parent.send_event(ev)
         elif self.parent:
@@ -227,10 +227,17 @@ class VerticalLayout(StackedLayout):
 
 
 class Widget(BaseLayout):
-    def __init__(self, parent):
+    def __init__(self, parent, data=None):
         super().__init__(None, None, parent)
+        self.data = data
         if parent == None:
             raise Exception("Widget needs parents")
+
+    def get_data(self):
+        return self.data
+
+    def set_data(self, data):
+        self.data = data
 
     def add_child(self, child):
         raise Exception("Widget cannot have children")
@@ -253,8 +260,8 @@ class Widget(BaseLayout):
 
 
 class DummyWidget(Widget):
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, data=None):
+        super().__init__(parent, data)
         self.window = None
 
     def redraw(self):
@@ -267,8 +274,8 @@ class DummyWidget(Widget):
 
 
 class ContainerWidget(Widget):
-    def __init__(self, parent, border=False, title=None, center=False, style=curses.A_NORMAL):
-        super().__init__(parent)
+    def __init__(self, parent, border=False, title=None, center=False, style=curses.A_NORMAL, data=None):
+        super().__init__(parent, data)
         self.window = None
         self.title = title
         self.border = border
@@ -306,8 +313,8 @@ class ContainerWidget(Widget):
 
 
 class InactiveItemWidget(Widget):
-    def __init__(self, parent, text):
-        super().__init__(parent)
+    def __init__(self, parent, text, data=None):
+        super().__init__(parent, data)
         self.text = text
 
     def redraw(self):
@@ -320,9 +327,8 @@ class ItemWidget(Widget):
     def __init__(self, parent, text, data=None, default=False):
         self.text = text
         self._selected = False
-        self.data = data
         self.default = default
-        super().__init__(parent)
+        super().__init__(parent, data)
 
     def redraw(self):
         window = curses.newwin(self._height, self._width, self._y, self._x)
@@ -342,33 +348,34 @@ class ItemWidget(Widget):
     def unselect(self):
         self._selected = False
 
-    def get_data(self):
-        return self.data
-
 
 class BrowserWidget(Widget):
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, data=None):
+        super().__init__(parent, data)
         self.children = []
         self.pos = -1
         self.select_callback = None
-        self.register_event('j', self.down)
-        self.register_event('k', self.up)
-        self.register_event('KEY_DOWN', self.down)
-        self.register_event('KEY_UP', self.up)
-        self.register_event('\n', self.call_selection_callback)
-
-    def set_selection_callback(self, ev):
-        self.select_callback = ev
-
-    def call_selection_callback(self):
-        if self.get_selected_item() and self.select_callback:
-            self.select_callback(self.get_selected_item())
+        self.register_event('j', lambda _: self.down())
+        self.register_event('k', lambda _: self.up())
+        self.register_event('KEY_DOWN', lambda _: self.down())
+        self.register_event('KEY_UP', lambda _: self.up())
+        self.register_event('KEY_HOME', lambda _: self.first())
+        self.register_event('KEY_END', lambda _: self.last())
 
     def add_child(self, child):
         self.children.append(child)
         if isinstance(child, ItemWidget) and child.default and self.pos < 0:
             self.pos = len(self.children) - 1
+
+    def remove_selected(self):
+        if self.pos >= 0:
+            self.children.remove(self.children[self.pos])
+            for i in range(len(self.children)):
+                if isinstance(self.children[(self.pos + i) % len(self.children)], ItemWidget):
+                    self.pos = (self.pos + i) % len(self.children)
+                    break
+            else:
+                self.pos = -1
 
     def clear_children(self):
         self.children = []
@@ -392,12 +399,26 @@ class BrowserWidget(Widget):
             child.redraw()
         curses.doupdate()
 
+    def unselect_current(self):
+        if self.pos >= 0 and self.pos < len(self.children):
+            self.children[self.pos].unselect()
+
+    def first(self):
+        self.unselect_current()
+        self.pos = -1
+        self.down()
+
+    def last(self):
+        self.unselect_current()
+        self.pos = len(self.children)
+        self.up()
+
     def up(self):
         next_pos = self.pos - 1
         while next_pos >= 0 and not isinstance(self.children[next_pos], ItemWidget):
             next_pos -= 1
         if next_pos >= 0:
-            self.children[self.pos].unselect()
+            self.unselect_current()
             self.pos = next_pos
             self.redraw()
 
@@ -406,7 +427,7 @@ class BrowserWidget(Widget):
         while next_pos < len(self.children) and not isinstance(self.children[next_pos], ItemWidget):
             next_pos += 1
         if next_pos < len(self.children):
-            self.children[self.pos].unselect()
+            self.unselect_current()
             self.pos = next_pos
             self.redraw()
 
@@ -417,8 +438,8 @@ class BrowserWidget(Widget):
 
 
 class LogWidget(Widget):
-    def __init__(self, parent, buffer_size=25):
-        super().__init__(parent)
+    def __init__(self, parent, buffer_size=25, data=None):
+        super().__init__(parent, data)
         self.lines = []
         self.buffer_size = buffer_size
 
@@ -440,8 +461,8 @@ class LogWidget(Widget):
 
 
 class ShortcutWidget(Widget):
-    def __init__(self, parent, event_parent, shortcuts=[]):
-        super().__init__(parent)
+    def __init__(self, parent, event_parent, shortcuts=[], data=None):
+        super().__init__(parent, data)
         self.shortcuts = []
         self.event_parent = event_parent
         self.replace_shortcuts(shortcuts)
