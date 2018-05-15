@@ -39,7 +39,7 @@ class CREpisode(Episode):
     def get_id(self):
         return 'CR-' + self.data['media_id']
 
-    def open(self, log=(lambda x:None)):
+    def open(self):
         mpv_args = ("--start=%d " % max(0, constants.get_playhead(self.get_id()) - 5)) + \
             "--term-status-msg \"Playback Status: ${{=time-pos}} ${{=duration}} \" {filename}"
         args = [
@@ -47,13 +47,13 @@ class CREpisode(Episode):
             mpv_args
         ]
         p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        log('$ ' + ' '.join(args))
+        logger('$ ' + ' '.join(args))
         playhead = None
         for line in p.stdout:
             line = line.decode().strip()
             if line[:16] == 'Playback Status:':
                 playhead, total_time = [float(x) for x in line.split()[-2:]]
-            log(line)
+            logger(line)
 
         if playhead:
             constants.update_history(self.get_id(), playhead, total_time)
@@ -73,8 +73,11 @@ class Anime(object):
     def get_id(self):
         pass
 
+    def get_collections(self):
+        pass
+
     def get_episodes(self):
-        """ returns [(collection, [episodes...])...]
+        """ returns a list of episodes
         """
         pass
 
@@ -89,17 +92,17 @@ class CRAnime(Anime):
     def get_id(self):
         return 'CR-' + self.data['series_id']
 
-    def get_episodes(self, log=(lambda x:None)):
-        log('Fetching episodes...')
+    def get_episodes(self):
+        logger('Fetching episodes...')
         episodes = [CREpisode(episode) for episode in api.list_media(series_id=self.data['series_id'], sort='desc', limit=1000)]
-        log('Fetched %d episodes' % len(episodes))
+        logger('Fetched %d episodes' % len(episodes))
         return episodes
 
-    def get_collections(self, log=(lambda x:None)):
-        log('Fetching collections...')
+    def get_collections(self):
+        logger('Fetching collections...')
         collections = api.list_collections(series_id=self.data['series_id'], limit=50)
         collections = {c['collection_id']: c['name'] for c in collections}
-        log('Fetched %d collections' % len(collections))
+        logger('Fetched %d collections' % len(collections))
         return collections
 
     def get_name(self):
@@ -271,8 +274,8 @@ class MyApp(App):
                 self.anime_list_widget.redraw()
 
     def list_episodes(self, anime):
-        episodes = anime.get_episodes(self.log)
-        collections = anime.get_collections(self.log)
+        episodes = anime.get_episodes()
+        collections = anime.get_collections()
 
         episode_item_text = []
         latest_accessed_episode = None
@@ -299,7 +302,7 @@ class MyApp(App):
         item = widget.get_selected_item()
         if item:
             episode = item.get_data()
-            episode.open(self.log)
+            episode.open()
 
     def delete_entry(self, widget):
         item = widget.get_selected_item()
