@@ -324,22 +324,26 @@ class InactiveItemWidget(Widget):
 
 
 class ItemWidget(Widget):
-    def __init__(self, parent, text, data=None, default=False):
+    def __init__(self, parent, text, data=None, default=False, style=curses.A_NORMAL):
         self.text = text
         self._selected = False
         self.default = default
+        self.style = style
         super().__init__(parent, data)
 
     def redraw(self):
         window = curses.newwin(self._height, self._width, self._y, self._x)
+        attr = self.style
         if self._selected:
-            attr = curses.A_REVERSE
+            attr |= curses.A_REVERSE
             if not self.focused:
                 attr |= curses.A_DIM
             window.bkgd(' ', attr)
             window.addstr(0, 0, self.get_display_text(self.text, self._width - 4), attr)
         else:
-            window.addstr(0, 0, self.get_display_text(self.text, self._width - 4), curses.A_NORMAL if self.focused else curses.A_DIM)
+            if not self.focused:
+                attr |= curses.A_DIM
+            window.addstr(0, 0, self.get_display_text(self.text, self._width - 4), attr)
         window.refresh()
 
     def select(self):

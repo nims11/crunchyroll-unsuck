@@ -138,7 +138,7 @@ class CRQueueDirectory(Directory):
             parent.add_child(self)
 
     def get_content(self):
-        return [CRAnime(anime['series']) for anime in api.get_queue('anime')]
+        return [self.parent] + [CRAnime(anime['series']) for anime in api.get_queue('anime')]
 
     def delete_entry(self, anime):
         return api.remove_from_queue(anime.data['series_id'])
@@ -264,7 +264,10 @@ class MyApp(App):
                 self.anime_list_widget.set_data(item)
                 self.log("Loading queue")
                 for content in item.get_content():
-                    ItemWidget(self.anime_list_widget, content.get_name(), content)
+                    if content == item.parent:
+                        ItemWidget(self.anime_list_widget, '<- (Back)', content, style=curses.A_NORMAL)
+                    else:
+                        ItemWidget(self.anime_list_widget, content.get_name(), content)
                 self.anime_list_widget.redraw()
 
     def list_episodes(self, anime):
