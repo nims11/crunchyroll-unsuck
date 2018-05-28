@@ -25,12 +25,15 @@ def update_history(episode, playhead, total=None):
     global CONFIG
     if 'playhead' not in CONFIG:
         CONFIG['playhead'] = {}
-    CONFIG['playhead'][episode] = {
+    if episode not in CONFIG['playhead']:
+        CONFIG['playhead'][episode] = {
+            'completed': False
+        }
+    CONFIG['playhead'][episode].update({
         'playhead': playhead,
         'total': total,
-        'completed': False,
         'timestamp': int(time.time())
-    }
+    })
     if total and total - playhead < 180:
         CONFIG['playhead'][episode]['completed'] = True
     save_config()

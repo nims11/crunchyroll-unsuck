@@ -234,6 +234,7 @@ class MyApp(App):
     def init_directories(self):
         self.root_directory = Directory('')
         CRQueueDirectory('CR Queue', self.root_directory)
+        self.anime_list_widget.set_data(self.root_directory)
         for content in self.root_directory.get_content():
             ItemWidget(self.anime_list_widget, content.get_name(), content)
 
@@ -282,10 +283,11 @@ class MyApp(App):
         latest_accessed_episode_time = 0
         for episode in episodes:
             last_access_time = constants.get_last_accessed(episode.get_id())
+            completed = constants.get_completed_status(episode.get_id())
             if last_access_time > latest_accessed_episode_time:
                 latest_accessed_episode, latest_accessed_episode_time = episode, last_access_time
-            episode_item_text.append((episode.get_episode_number(), episode.get_name()))
-        episode_item_text = self.tablize(episode_item_text, 5)
+            episode_item_text.append((episode.get_episode_number(), '\u2713' if completed else '', episode.get_name()))
+        episode_item_text = self.tablize(episode_item_text, 3)
 
         self.episode_list_widget.clear_children()
         current_collection = None
@@ -314,7 +316,7 @@ class MyApp(App):
                 widget.remove_selected()
                 widget.redraw()
             else:
-                logger("Error removing from the queue")
+                logger("Error removing the item")
 
 
 def main(stdscr):
