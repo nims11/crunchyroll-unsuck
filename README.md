@@ -10,7 +10,6 @@ Todo:
 - MAL Integration
 - Auto sync progress with MAL and CR
 - Add/Remove/Modify queue
-- Continue playback from last left
 
 
 ## Requirements
