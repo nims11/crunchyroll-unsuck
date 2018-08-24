@@ -130,21 +130,37 @@ class Directory(object):
         child.parent = self
         self.children.append(child)
 
-    def delete_entry(self, child):
+    def delete_entry(self, item):
         pass
+
+    def get_shortcuts(self):
+        return [
+            ('q', 'exit', lambda _: sys.exit()),
+        ]
 
 
 class CRQueueDirectory(Directory):
     def __init__(self, name, parent=None):
-        super().__init__(name)
-        if parent:
-            parent.add_child(self)
+        super().__init__(name, parent)
 
     def get_content(self):
         return [self.parent] + [CRAnime(anime['series']) for anime in api.get_queue('anime')]
 
     def delete_entry(self, anime):
         return api.remove_from_queue(anime.data['series_id'])
+
+    def get_shortcuts(self):
+        return [
+            ('s', 'sort', [
+                ('n', 'sort by name', self.sort),
+                ('r', 'sort by recently watched', self.sort),
+                ('n', 'sort by name', self.sort),
+            ]),
+            ('d', 'delete', self.delete_entry),
+        ] + super().get_shortcuts()
+
+    def sort(self):
+        pass
 
 
 def generate_control_switch(lst, active=0):
