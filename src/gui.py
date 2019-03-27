@@ -4,7 +4,7 @@
 import curses
 import signal
 
-class Value(object):
+class Value:
     """ Size abstraction
     """
     VAL_ABSOLUTE = 'absolute'
@@ -17,7 +17,7 @@ class Value(object):
         self.type = val_type
 
 
-class BaseObject(object):
+class BaseObject:
     """ Base object which can be redrawn
     """
     def send_event(self, ev):
@@ -29,7 +29,7 @@ class BaseObject(object):
         pass
 
 
-class InputHandler(object):
+class InputHandler:
     """ Handles interaction with the App
     """
     def __init__(self):
@@ -43,7 +43,7 @@ class InputHandler(object):
             self.app.stdscr.getkey()
 
 
-class App(object):
+class App:
     def __init__(self, stdscr, root):
         self.stdscr = stdscr
         self.root = root
