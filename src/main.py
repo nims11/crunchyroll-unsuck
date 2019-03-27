@@ -6,13 +6,13 @@ import curses
 from typing import List, Union, Optional, Tuple, Callable, Any
 
 import constants
-from api.crunchyroll import CrunchyrollAPI
+import api.crunchyroll as crapi
 from config import USER, PASS
 from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, LogWidget, InactiveItemWidget
 from gui import ShortcutWidget
 from gui import BaseLayout, HorizontalLayout, VerticalLayout, Value, App
 
-api = CrunchyrollAPI(username=USER, password=PASS)
+api = crapi.CrunchyrollAPI(username=USER, password=PASS)
 logger = lambda x: None
 
 class Episode:
@@ -111,7 +111,7 @@ class CRAnime(Anime):
         logger('Fetching episodes...')
         episodes = [
             CREpisode(episode)
-            for episode in api.list_media(series_id=self.data['series_id'], sort='desc', limit=1000)
+            for episode in api.list_media(series_id=self.data['series_id'], sort=crapi.SortOption.DESC, limit=1000)
         ]
         logger('Fetched %d episodes' % len(episodes))
         return episodes
