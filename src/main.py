@@ -10,7 +10,7 @@ import api.crunchyroll as crapi
 from config import USER, PASS
 from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, LogWidget, InactiveItemWidget
 from gui import ShortcutWidget
-from gui import BaseLayout, HorizontalLayout, VerticalLayout, Value, App
+from gui import BaseLayout, HorizontalLayout, VerticalLayout, Value, App, ValueType
 
 api = crapi.CrunchyrollAPI(username=USER, password=PASS)
 logger = lambda x: None
@@ -241,12 +241,12 @@ class MyApp(App):
         super().__init__(stdscr, root)
 
         main_container = ContainerWidget(root, False, constants.APP_NAME + ' v' + constants.APP_VERSION, center=True, style=(curses.A_BOLD|curses.A_UNDERLINE))
-        l4 = VerticalLayout(Value(1, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), main_container)
+        l4 = VerticalLayout(Value(1, ValueType.VAL_RELATIVE), Value(1, ValueType.VAL_RELATIVE), main_container)
 
-        l1 = HorizontalLayout(Value(1, Value.VAL_RELATIVE), Value(0.8, Value.VAL_RELATIVE), l4)
-        l2 = BaseLayout(Value(0.3, Value.VAL_RELATIVE), Value(1, Value.VAL_RELATIVE), l1)
+        l1 = HorizontalLayout(Value(1, ValueType.VAL_RELATIVE), Value(0.8, ValueType.VAL_RELATIVE), l4)
+        l2 = BaseLayout(Value(0.3, ValueType.VAL_RELATIVE), Value(1, ValueType.VAL_RELATIVE), l1)
 
-        l5 = BaseLayout(Value(1, Value.VAL_RELATIVE), Value(-1, Value.VAL_ABSOLUTE), l4)
+        l5 = BaseLayout(Value(1, ValueType.VAL_RELATIVE), Value(-1, ValueType.VAL_ABSOLUTE), l4)
         c3 = ContainerWidget(l5, True, "Log")
 
         c1 = ContainerWidget(l2, True, "Anime")

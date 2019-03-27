@@ -2,17 +2,20 @@
 """
 # pylint: disable=too-few-public-methods
 import curses
-import signal
+from enum import Enum
+from typing import Union
+
+
+class ValueType(Enum):
+    """ Types of value for size """
+    VAL_ABSOLUTE = 1
+    VAL_RELATIVE = 2
+
 
 class Value:
     """ Size abstraction
     """
-    VAL_ABSOLUTE = 'absolute'
-    VAL_RELATIVE = 'relative'
-    VAL_TYPES = [VAL_ABSOLUTE, VAL_RELATIVE]
-    def __init__(self, value, val_type=VAL_ABSOLUTE):
-        if val_type not in Value.VAL_TYPES:
-            raise Exception("Invalid val_type")
+    def __init__(self, value: Union[int, float], val_type: ValueType = ValueType.VAL_ABSOLUTE):
         self.value = value
         self.type = val_type
 
@@ -154,22 +157,22 @@ class BaseLayout(BaseObject):
         else:
             self._y = parent_y
 
-        if self.height.type == Value.VAL_ABSOLUTE:
+        if self.height.type == ValueType.VAL_ABSOLUTE:
             self._height = int(self.height.value)
             if self._height < 0:
                 self._height += parent_height
 
-        if self.width.type == Value.VAL_ABSOLUTE:
+        if self.width.type == ValueType.VAL_ABSOLUTE:
             self._width = int(self.width.value)
             if self._width < 0:
                 self._width += parent_width
 
         if self.parent is not None:
-            if self.height.type == Value.VAL_RELATIVE:
+            if self.height.type == ValueType.VAL_RELATIVE:
                 self._height = int(parent_height*self.height.value)
-            if self.width.type == Value.VAL_RELATIVE:
+            if self.width.type == ValueType.VAL_RELATIVE:
                 self._width = int(parent_width*self.width.value)
-        elif self.width.type == Value.VAL_RELATIVE or self.height.type == Value.VAL_RELATIVE:
+        elif self.width.type == ValueType.VAL_RELATIVE or self.height.type == ValueType.VAL_RELATIVE:
             raise Exception('root layout cannot have relative dimensions')
 
     def redraw(self):
