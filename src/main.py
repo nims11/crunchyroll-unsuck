@@ -7,11 +7,12 @@ from typing import List, Union, Optional, Tuple, Callable, Any
 
 import constants
 from api.crunchyroll import CrunchyrollAPI
+from config import USER, PASS
 from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, LogWidget, InactiveItemWidget
 from gui import ShortcutWidget
 from gui import BaseLayout, HorizontalLayout, VerticalLayout, Value, App
 
-api = CrunchyrollAPI()
+api = CrunchyrollAPI(username=USER, password=PASS)
 logger = lambda x: None
 
 class Episode:
