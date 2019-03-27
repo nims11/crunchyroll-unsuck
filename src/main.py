@@ -1,39 +1,47 @@
+""" Main app script
+"""
 import sys
 import subprocess
 import curses
-import os
+from typing import List, Union, Optional, Tuple, Callable, Any
+
+import constants
+from api.crunchyroll import CrunchyrollAPI
 from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, LogWidget, InactiveItemWidget
 from gui import ShortcutWidget
 from gui import BaseLayout, HorizontalLayout, VerticalLayout, Value, App
-from api.crunchyroll import CrunchyrollAPI
-import constants
 
 api = CrunchyrollAPI()
 logger = lambda x: None
 
-class Episode(object):
-    def get_id(self):
+class Episode:
+    """ Base episode class
+    """
+    def get_id(self) -> str:
         """ ID used in cache files
         """
-        pass
 
-    def open(self):
-        """ opens the episode and sets the playhead
+    def open(self) -> None:
+        """ Opens the episode and sets the playhead
         """
-        pass
 
-    def get_episode_number(self):
-        pass
+    def get_number(self) -> str:
+        """ Get episode number
+        """
 
-    def get_name(self):
-        pass
+    def get_name(self) -> str:
+        """ Get episode name
+        """
 
-    def get_collection(self):
-        pass
+    def get_collection(self) -> str:
+        """ Get collection (season/sub/dub) the episode belongs to
+        """
 
 
 class CREpisode(Episode):
-    def __init__(self, data):
+    """ Crunchyroll Episode class
+    """
+    def __init__(self, data: dict):
         self.data = data
 
     def get_id(self):
@@ -46,10 +54,10 @@ class CREpisode(Episode):
             'streamlink', self.data['url'], 'best', '--verbose-player', "-a",
             mpv_args
         ]
-        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        player_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         logger('$ ' + ' '.join(args))
         playhead = None
-        for line in p.stdout:
+        for line in player_process.stdout:
             line = line.decode().strip()
             if line[:16] == 'Playback Status:':
                 playhead, total_time = [float(x) for x in line.split()[-2:]]
@@ -57,9 +65,9 @@ class CREpisode(Episode):
 
         if playhead:
             constants.update_history(self.get_id(), playhead, total_time)
-        p.wait()
+        player_process.wait()
 
-    def get_episode_number(self):
+    def get_number(self):
         return self.data['episode_number']
 
     def get_name(self):
@@ -69,23 +77,29 @@ class CREpisode(Episode):
         return self.data.get('collection_id', None)
 
 
-class Anime(object):
-    def get_id(self):
-        pass
-
-    def get_collections(self):
-        pass
-
-    def get_episodes(self):
-        """ returns a list of episodes
+class Anime:
+    """ Base Anime class
+    """
+    def get_id(self) -> str:
+        """ Get anime id
         """
-        pass
 
-    def get_name(self):
-        pass
+    def get_collections(self) -> List[str]:
+        """ Get a list of collections
+        """
+
+    def get_episodes(self) -> List[Episode]:
+        """ Get list of episodes
+        """
+
+    def get_name(self) -> str:
+        """ Get name of anime
+        """
 
 
 class CRAnime(Anime):
+    """ Crunchyroll Anime
+    """
     def __init__(self, data):
         self.data = data
 
@@ -94,7 +108,10 @@ class CRAnime(Anime):
 
     def get_episodes(self):
         logger('Fetching episodes...')
-        episodes = [CREpisode(episode) for episode in api.list_media(series_id=self.data['series_id'], sort='desc', limit=1000)]
+        episodes = [
+            CREpisode(episode)
+            for episode in api.list_media(series_id=self.data['series_id'], sort='desc', limit=1000)
+        ]
         logger('Fetched %d episodes' % len(episodes))
         return episodes
 
@@ -109,45 +126,58 @@ class CRAnime(Anime):
         return self.data['name']
 
 
-class Directory(object):
-    def __init__(self, name, parent=None):
+class Directory:
+    """ Directory base class
+    """
+    def __init__(self, name: str, parent: Optional['Directory'] = None):
         self.name = name
         self.parent = parent
-        self.children = []
-        if parent:
+        self.children = []  # type: List[Union[Directory, Anime]]
+        if self.parent:
             self.parent.add_child(self)
 
-    def get_name(self):
+    def get_name(self) -> str:
+        """ Get directory name
+        """
         return self.name
 
-    def get_content(self):
+    def get_content(self) -> List[Union['Directory', Anime]]:
+        """ Get content of directory
+        """
         return self.children
 
-    def get_parent(self):
+    def get_parent(self) -> Optional['Directory']:
+        """ Get directory parent
+        """
         return self.parent
 
-    def add_child(self, child):
-        child.parent = self
+    def add_child(self, child: Union['Directory', Anime]) -> None:
+        """ Add content to directory
+        """
+        if isinstance(child, Directory):
+            child.parent = self
         self.children.append(child)
 
-    def delete_entry(self, item):
-        pass
+    def delete_entry(self, item) -> bool:
+        """ Delete entry
+        """
 
-    def get_shortcuts(self):
+    def get_shortcuts(self) -> List:
+        """ Get shortcuts for bottom bar
+        """
         return [
             ('q', 'exit', lambda _: sys.exit()),
         ]
 
 
 class CRQueueDirectory(Directory):
-    def __init__(self, name, parent=None):
-        super().__init__(name, parent)
-
+    """ Directory showing the Crunchyroll queue
+    """
     def get_content(self):
         return [self.parent] + [CRAnime(anime['series']) for anime in api.get_queue('anime')]
 
-    def delete_entry(self, anime):
-        return api.remove_from_queue(anime.data['series_id'])
+    def delete_entry(self, item: CRAnime):
+        return api.remove_from_queue(item.data['series_id'])
 
     def get_shortcuts(self):
         return [
@@ -302,7 +332,7 @@ class MyApp(App):
             completed = constants.get_completed_status(episode.get_id())
             if last_access_time > latest_accessed_episode_time:
                 latest_accessed_episode, latest_accessed_episode_time = episode, last_access_time
-            episode_item_text.append((episode.get_episode_number(), '\u2713' if completed else '', episode.get_name()))
+            episode_item_text.append((episode.get_number(), '\u2713' if completed else '', episode.get_name()))
         episode_item_text = self.tablize(episode_item_text, 3)
 
         self.episode_list_widget.clear_children()
