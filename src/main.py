@@ -3,6 +3,7 @@
 import sys
 import subprocess
 import curses
+import logging
 from typing import List, Union, Optional
 
 import constants
@@ -16,6 +17,16 @@ from user_state import UserState
 api = crapi.CrunchyrollAPI(username=USER, password=PASS)
 user_state = UserState(constants.APP_DATA_FILE)
 logger = lambda x: None
+
+
+class GUIHandler(logging.StreamHandler):
+
+    def __init__(self, handler):
+        logging.StreamHandler.__init__(self)
+        self.handler = handler
+
+    def emit(self, record):
+        self.handler(self.format(record))
 
 
 class Episode:
@@ -65,10 +76,12 @@ class CREpisode(Episode):
         logger("$ " + " ".join(args))
         playhead = None
         for line in player_process.stdout:
-            line = line.decode().strip()
-            if line[:16] == "Playback Status:":
-                playhead, total_time = [float(x) for x in line.split()[-2:]]
-            logger(line)
+            try:
+                line = line.decode().strip()
+                if line[:16] == "Playback Status:":
+                    playhead, total_time = [float(x) for x in line.split()[-2:]]
+            except Exception as exp:
+                logging.warning("Error parsing player stdout (%s): %s", line, str(exp))
 
         if playhead:
             user_state.record_history(self.get_id(), playhead, total_time)
@@ -300,6 +313,7 @@ class MyApp(App):
         lst2.register_event("\n", self.open_episode)
         self.set_log_widget(LogWidget(c3))
         self.set_control(lst1)
+        logging.info("HELLO")
 
     def init_directories(self):
         self.root_directory = Directory("")
@@ -397,7 +411,19 @@ def main(stdscr):
     curses.use_default_colors()
 
     app = MyApp(stdscr)
+    logging.basicConfig(
+        format='%(asctime)s %(levelname)s %(message)s',
+        level=logging.INFO,
+        datefmt='%I:%M:%S'
+    )
+    logger = logging.getLogger()
+    ch = GUIHandler(app.log)
+    ch.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
     app.run()
 
 
-curses.wrapper(main)
+if __name__ == '__main__':
+    curses.wrapper(main)

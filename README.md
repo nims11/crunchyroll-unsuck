@@ -14,6 +14,6 @@ Todo:
 
 ## Requirements
 
-- python3
+- python3.7
 - streamlink
 - mpv (recommended for all features to work) or compatible media player
