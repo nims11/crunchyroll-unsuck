@@ -44,13 +44,16 @@ class Episode:
 class CREpisode(Episode):
     """ Crunchyroll Episode class
     """
-    def __init__(self, data: dict):
+    def __init__(self, data: dict, anime_id: str = None):
         self.data = data
+        self.anime_id = anime_id
 
     def get_id(self):
         return 'CR-' + self.data['media_id']
 
     def open(self):
+        user_state.record_history(self.get_id(), 0)
+        user_state.update_item_access(self.anime_id)
         mpv_args = ("--start=%d " % max(0, user_state.get_playhead(self.get_id()) - 5)) + \
             "--term-status-msg \"Playback Status: ${{=time-pos}} ${{=duration}} \" {filename}"
         args = [
@@ -112,7 +115,7 @@ class CRAnime(Anime):
     def get_episodes(self):
         logger('Fetching episodes...')
         episodes = [
-            CREpisode(episode)
+            CREpisode(episode, anime_id=self.get_id())
             for episode in api.list_media(series_id=self.data['series_id'], sort=crapi.SortOption.DESC, limit=1000)
         ]
         logger('Fetched %d episodes' % len(episodes))
@@ -177,7 +180,7 @@ class CRQueueDirectory(Directory):
     """ Directory showing the Crunchyroll queue
     """
     def get_content(self):
-        return [self.parent] + [CRAnime(anime['series']) for anime in api.get_queue('anime')]
+        return [self.parent] + sorted([CRAnime(anime['series']) for anime in api.get_queue('anime')], key=lambda x: (-user_state.get_item_last_accessed(x.get_id()), x.get_name()))
 
     def delete_entry(self, item: CRAnime):
         return api.remove_from_queue(item.data['series_id'])

@@ -4,6 +4,7 @@ import os
 import logging
 import time
 import atexit
+import copy
 from dataclasses import dataclass
 from collections import defaultdict
 from typing import Optional
@@ -16,6 +17,7 @@ class UserState:
 
     def __init__(self, state_file_path: str):
         self.state_file_path = state_file_path
+        self._config = copy.deepcopy(UserState.CONFIG_TEMPLATE)
         atexit.register(self.save_state)
         try:
             if not os.path.exists(state_file_path):
@@ -23,11 +25,10 @@ class UserState:
                 with open(state_file_path, "w") as state_file:
                     json.dump(UserState.CONFIG_TEMPLATE, state_file_path)
             with open(state_file_path) as state_file:
-                self._config = json.load(state_file)
+                self._config.update(json.load(state_file))
         except Exception as exp:
             self.state_file_path = None
             logging.error("State file error (%s), using dummy state file", str(exp))
-            self._config = UserState.CONFIG_TEMPLATE
 
     def save_state(self):
         """ Save state to file """
@@ -54,3 +55,11 @@ class UserState:
 
     def get_last_accessed(self, episode: str) -> int:
         return self._config['playhead'].get(episode, {}).get('timestamp', 0)
+
+    def get_item_last_accessed(self, item: str) -> int:
+        return self._config['item_history'].get(item, {}).get('timestamp', 0)
+
+    def update_item_access(self, item: str) -> None:
+        if item not in self._config['item_history']:
+            self._config['item_history'][item] = {}
+        self._config['item_history'][item].update({'timestamp': int(time.time())})
