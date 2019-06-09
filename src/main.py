@@ -17,9 +17,11 @@ api = crapi.CrunchyrollAPI(username=USER, password=PASS)
 user_state = UserState(constants.APP_DATA_FILE)
 logger = lambda x: None
 
+
 class Episode:
     """ Base episode class
     """
+
     def get_id(self) -> str:
         """ ID used in cache files
         """
@@ -44,28 +46,27 @@ class Episode:
 class CREpisode(Episode):
     """ Crunchyroll Episode class
     """
+
     def __init__(self, data: dict, anime_id: str = None):
         self.data = data
         self.anime_id = anime_id
 
     def get_id(self):
-        return 'CR-' + self.data['media_id']
+        return "CR-" + self.data["media_id"]
 
     def open(self):
         user_state.record_history(self.get_id(), 0)
         user_state.update_item_access(self.anime_id)
-        mpv_args = ("--start=%d " % max(0, user_state.get_playhead(self.get_id()) - 5)) + \
-            "--term-status-msg \"Playback Status: ${{=time-pos}} ${{=duration}} \" {filename}"
-        args = [
-            'streamlink', self.data['url'], 'best', '--verbose-player', "-a",
-            mpv_args
-        ]
+        mpv_args = (
+            "--start=%d " % max(0, user_state.get_playhead(self.get_id()) - 5)
+        ) + '--term-status-msg "Playback Status: ${{=time-pos}} ${{=duration}} " {filename}'
+        args = ["streamlink", self.data["url"], "best", "--verbose-player", "-a", mpv_args]
         player_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        logger('$ ' + ' '.join(args))
+        logger("$ " + " ".join(args))
         playhead = None
         for line in player_process.stdout:
             line = line.decode().strip()
-            if line[:16] == 'Playback Status:':
+            if line[:16] == "Playback Status:":
                 playhead, total_time = [float(x) for x in line.split()[-2:]]
             logger(line)
 
@@ -74,18 +75,19 @@ class CREpisode(Episode):
         player_process.wait()
 
     def get_number(self):
-        return self.data['episode_number']
+        return self.data["episode_number"]
 
     def get_name(self):
-        return self.data['name']
+        return self.data["name"]
 
     def get_collection(self):
-        return self.data.get('collection_id', None)
+        return self.data.get("collection_id", None)
 
 
 class Anime:
     """ Base Anime class
     """
+
     def get_id(self) -> str:
         """ Get anime id
         """
@@ -106,36 +108,38 @@ class Anime:
 class CRAnime(Anime):
     """ Crunchyroll Anime
     """
+
     def __init__(self, data):
         self.data = data
 
     def get_id(self):
-        return 'CR-' + self.data['series_id']
+        return "CR-" + self.data["series_id"]
 
     def get_episodes(self):
-        logger('Fetching episodes...')
+        logger("Fetching episodes...")
         episodes = [
             CREpisode(episode, anime_id=self.get_id())
-            for episode in api.list_media(series_id=self.data['series_id'], sort=crapi.SortOption.DESC, limit=1000)
+            for episode in api.list_media(series_id=self.data["series_id"], sort=crapi.SortOption.DESC, limit=1000)
         ]
-        logger('Fetched %d episodes' % len(episodes))
+        logger("Fetched %d episodes" % len(episodes))
         return episodes
 
     def get_collections(self):
-        logger('Fetching collections...')
-        collections = api.list_collections(series_id=self.data['series_id'], limit=50)
-        collections = {c['collection_id']: c['name'] for c in collections}
-        logger('Fetched %d collections' % len(collections))
+        logger("Fetching collections...")
+        collections = api.list_collections(series_id=self.data["series_id"], limit=50)
+        collections = {c["collection_id"]: c["name"] for c in collections}
+        logger("Fetched %d collections" % len(collections))
         return collections
 
     def get_name(self):
-        return self.data['name']
+        return self.data["name"]
 
 
 class Directory:
     """ Directory base class
     """
-    def __init__(self, name: str, parent: Optional['Directory'] = None):
+
+    def __init__(self, name: str, parent: Optional["Directory"] = None):
         self.name = name
         self.parent = parent
         self.children = []  # type: List[Union[Directory, Anime]]
@@ -147,17 +151,17 @@ class Directory:
         """
         return self.name
 
-    def get_content(self) -> List[Union['Directory', Anime]]:
+    def get_content(self) -> List[Union["Directory", Anime]]:
         """ Get content of directory
         """
         return self.children
 
-    def get_parent(self) -> Optional['Directory']:
+    def get_parent(self) -> Optional["Directory"]:
         """ Get directory parent
         """
         return self.parent
 
-    def add_child(self, child: Union['Directory', Anime]) -> None:
+    def add_child(self, child: Union["Directory", Anime]) -> None:
         """ Add content to directory
         """
         if isinstance(child, Directory):
@@ -171,28 +175,34 @@ class Directory:
     def get_shortcuts(self) -> List:
         """ Get shortcuts for bottom bar
         """
-        return [
-            ('q', 'exit', lambda _: sys.exit()),
-        ]
+        return [("q", "exit", lambda _: sys.exit())]
 
 
 class CRQueueDirectory(Directory):
     """ Directory showing the Crunchyroll queue
     """
+
     def get_content(self):
-        return [self.parent] + sorted([CRAnime(anime['series']) for anime in api.get_queue('anime')], key=lambda x: (-user_state.get_item_last_accessed(x.get_id()), x.get_name()))
+        return [self.parent] + sorted(
+            [CRAnime(anime["series"]) for anime in api.get_queue("anime")],
+            key=lambda x: (-user_state.get_item_last_accessed(x.get_id()), x.get_name()),
+        )
 
     def delete_entry(self, item: CRAnime):
-        return api.remove_from_queue(item.data['series_id'])
+        return api.remove_from_queue(item.data["series_id"])
 
     def get_shortcuts(self):
         return [
-            ('s', 'sort', [
-                ('n', 'sort by name', self.sort),
-                ('r', 'sort by recently watched', self.sort),
-                ('n', 'sort by name', self.sort),
-            ]),
-            ('d', 'delete', self.delete_entry),
+            (
+                "s",
+                "sort",
+                [
+                    ("n", "sort by name", self.sort),
+                    ("r", "sort by recently watched", self.sort),
+                    ("n", "sort by name", self.sort),
+                ],
+            ),
+            ("d", "delete", self.delete_entry),
         ] + super().get_shortcuts()
 
     def sort(self):
@@ -245,7 +255,13 @@ class MyApp(App):
         root = BaseLayout(Value(curses.COLS), Value(curses.LINES), None)
         super().__init__(stdscr, root)
 
-        main_container = ContainerWidget(root, False, constants.APP_NAME + ' v' + constants.APP_VERSION, center=True, style=(curses.A_BOLD|curses.A_UNDERLINE))
+        main_container = ContainerWidget(
+            root,
+            False,
+            constants.APP_NAME + " v" + constants.APP_VERSION,
+            center=True,
+            style=(curses.A_BOLD | curses.A_UNDERLINE),
+        )
         l4 = VerticalLayout(Value(1, ValueType.VAL_RELATIVE), Value(1, ValueType.VAL_RELATIVE), main_container)
 
         l1 = HorizontalLayout(Value(1, ValueType.VAL_RELATIVE), Value(0.8, ValueType.VAL_RELATIVE), l4)
@@ -264,28 +280,30 @@ class MyApp(App):
         self.episode_container = c2
 
         self.anime_view_shortcuts = [
-            ('s', 'sort', sys.exit),
-            ('d', 'delete', self.delete_entry),
-            ('q', 'exit', lambda _: sys.exit()),
+            ("s", "sort", sys.exit),
+            ("d", "delete", self.delete_entry),
+            ("q", "exit", lambda _: sys.exit()),
         ]
         s1 = ShortcutWidget(l4, lst1, self.anime_view_shortcuts)
 
         self.init_directories()
         # Register events
-        root.register_event('q', lambda _: sys.exit())
-        self.prev_switch, self.next_switch, self.switch_to = generate_control_switch([('anime', lst1), ('episodes', lst2)], active=0)
-        l1.register_event('l', lambda _: self.next_switch())
-        l1.register_event('KEY_RIGHT', lambda _: self.next_switch())
-        l1.register_event('h', lambda _: self.prev_switch())
-        l1.register_event('KEY_LEFT', lambda _: self.prev_switch())
-        lst1.register_event('\n', self.list_content)
-        lst2.register_event('\n', self.open_episode)
+        root.register_event("q", lambda _: sys.exit())
+        self.prev_switch, self.next_switch, self.switch_to = generate_control_switch(
+            [("anime", lst1), ("episodes", lst2)], active=0
+        )
+        l1.register_event("l", lambda _: self.next_switch())
+        l1.register_event("KEY_RIGHT", lambda _: self.next_switch())
+        l1.register_event("h", lambda _: self.prev_switch())
+        l1.register_event("KEY_LEFT", lambda _: self.prev_switch())
+        lst1.register_event("\n", self.list_content)
+        lst2.register_event("\n", self.open_episode)
         self.set_log_widget(LogWidget(c3))
         self.set_control(lst1)
 
     def init_directories(self):
-        self.root_directory = Directory('')
-        CRQueueDirectory('CR Queue', self.root_directory)
+        self.root_directory = Directory("")
+        CRQueueDirectory("CR Queue", self.root_directory)
         self.anime_list_widget.set_data(self.root_directory)
         for content in self.root_directory.get_content():
             ItemWidget(self.anime_list_widget, content.get_name(), content)
@@ -297,15 +315,15 @@ class MyApp(App):
         for col in range(len(rows[0])):
             offset.append(0)
             for row in rows:
-                ret.append('')
+                ret.append("")
                 offset[-1] = max(offset[-1], prev_offset + len(row[col]) + extra_padding)
             prev_offset = offset[-1]
 
         for col in range(len(rows[0])):
             for idx, row in enumerate(rows):
                 ret[idx] += row[col]
-                if col != len(rows[0])-1:
-                    ret[idx] += ' ' * (offset[col] - len(ret[idx]))
+                if col != len(rows[0]) - 1:
+                    ret[idx] += " " * (offset[col] - len(ret[idx]))
 
         return ret
 
@@ -321,7 +339,7 @@ class MyApp(App):
                 self.log("Loading queue")
                 for content in item.get_content():
                     if content == item.parent:
-                        ItemWidget(self.anime_list_widget, '<- (Back)', content, style=curses.A_NORMAL)
+                        ItemWidget(self.anime_list_widget, "<- (Back)", content, style=curses.A_NORMAL)
                     else:
                         ItemWidget(self.anime_list_widget, content.get_name(), content)
                 self.anime_list_widget.redraw()
@@ -338,7 +356,7 @@ class MyApp(App):
             completed = user_state.get_completed_status(episode.get_id())
             if last_access_time > latest_accessed_episode_time:
                 latest_accessed_episode, latest_accessed_episode_time = episode, last_access_time
-            episode_item_text.append((episode.get_number(), '\u2713' if completed else '', episode.get_name()))
+            episode_item_text.append((episode.get_number(), "\u2713" if completed else "", episode.get_name()))
         episode_item_text = self.tablize(episode_item_text, 3)
 
         self.episode_list_widget.clear_children()
@@ -350,7 +368,7 @@ class MyApp(App):
                     InactiveItemWidget(self.episode_list_widget, collections[current_collection])
             ItemWidget(self.episode_list_widget, episode_text, episode, default=(episode == latest_accessed_episode))
 
-        self.switch_to('episodes')
+        self.switch_to("episodes")
 
     def open_episode(self, widget):
         item = widget.get_selected_item()
@@ -380,5 +398,6 @@ def main(stdscr):
 
     app = MyApp(stdscr)
     app.run()
+
 
 curses.wrapper(main)
