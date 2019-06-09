@@ -3,16 +3,18 @@
 import sys
 import subprocess
 import curses
-from typing import List, Union, Optional, Tuple, Callable, Any
+from typing import List, Union, Optional
 
 import constants
 import api.crunchyroll as crapi
 from config import USER, PASS
-from gui import InputHandler, ItemWidget, BrowserWidget, ContainerWidget, LogWidget, InactiveItemWidget
+from gui import ItemWidget, BrowserWidget, ContainerWidget, LogWidget, InactiveItemWidget
 from gui import ShortcutWidget
 from gui import BaseLayout, HorizontalLayout, VerticalLayout, Value, App, ValueType
+from user_state import UserState
 
 api = crapi.CrunchyrollAPI(username=USER, password=PASS)
+user_state = UserState(constants.APP_DATA_FILE)
 logger = lambda x: None
 
 class Episode:
@@ -49,7 +51,7 @@ class CREpisode(Episode):
         return 'CR-' + self.data['media_id']
 
     def open(self):
-        mpv_args = ("--start=%d " % max(0, constants.get_playhead(self.get_id()) - 5)) + \
+        mpv_args = ("--start=%d " % max(0, user_state.get_playhead(self.get_id()) - 5)) + \
             "--term-status-msg \"Playback Status: ${{=time-pos}} ${{=duration}} \" {filename}"
         args = [
             'streamlink', self.data['url'], 'best', '--verbose-player', "-a",
@@ -65,7 +67,7 @@ class CREpisode(Episode):
             logger(line)
 
         if playhead:
-            constants.update_history(self.get_id(), playhead, total_time)
+            user_state.record_history(self.get_id(), playhead, total_time)
         player_process.wait()
 
     def get_number(self):
@@ -329,8 +331,8 @@ class MyApp(App):
         latest_accessed_episode = None
         latest_accessed_episode_time = 0
         for episode in episodes:
-            last_access_time = constants.get_last_accessed(episode.get_id())
-            completed = constants.get_completed_status(episode.get_id())
+            last_access_time = user_state.get_last_accessed(episode.get_id())
+            completed = user_state.get_completed_status(episode.get_id())
             if last_access_time > latest_accessed_episode_time:
                 latest_accessed_episode, latest_accessed_episode_time = episode, last_access_time
             episode_item_text.append((episode.get_number(), '\u2713' if completed else '', episode.get_name()))
