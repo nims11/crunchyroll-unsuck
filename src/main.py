@@ -16,7 +16,6 @@ from user_state import UserState
 
 api = crapi.CrunchyrollAPI(username=USER, password=PASS)
 user_state = UserState(constants.APP_DATA_FILE)
-logger = lambda x: None
 
 
 class GUIHandler(logging.StreamHandler):
@@ -73,7 +72,7 @@ class CREpisode(Episode):
         ) + '--term-status-msg "Playback Status: ${{=time-pos}} ${{=duration}} " {filename}'
         args = ["streamlink", self.data["url"], "best", "--verbose-player", "-a", mpv_args]
         player_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        logger("$ " + " ".join(args))
+        logging.info("$ " + " ".join(args))
         playhead = None
         for line in player_process.stdout:
             try:
@@ -129,19 +128,19 @@ class CRAnime(Anime):
         return "CR-" + self.data["series_id"]
 
     def get_episodes(self):
-        logger("Fetching episodes...")
+        logging.info("Fetching episodes...")
         episodes = [
             CREpisode(episode, anime_id=self.get_id())
             for episode in api.list_media(series_id=self.data["series_id"], sort=crapi.SortOption.DESC, limit=1000)
         ]
-        logger("Fetched %d episodes" % len(episodes))
+        logging.info("Fetched %d episodes" % len(episodes))
         return episodes
 
     def get_collections(self):
-        logger("Fetching collections...")
+        logging.info("Fetching collections...")
         collections = api.list_collections(series_id=self.data["series_id"], limit=50)
         collections = {c["collection_id"]: c["name"] for c in collections}
-        logger("Fetched %d collections" % len(collections))
+        logging.info("Fetched %d collections" % len(collections))
         return collections
 
     def get_name(self):
@@ -263,10 +262,9 @@ def generate_control_switch(lst, active=0):
 
 class MyApp(App):
     def __init__(self, stdscr):
-        global logger
-        logger = self.log
         root = BaseLayout(Value(curses.COLS), Value(curses.LINES), None)
         super().__init__(stdscr, root)
+        self._setup_logging()
 
         main_container = ContainerWidget(
             root,
@@ -313,7 +311,18 @@ class MyApp(App):
         lst2.register_event("\n", self.open_episode)
         self.set_log_widget(LogWidget(c3))
         self.set_control(lst1)
-        logging.info("HELLO")
+
+    def _setup_logging(self):
+        """ Setup logging handler """
+        ch = GUIHandler(self.log)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        ch.setFormatter(formatter)
+        logging.getLogger().handlers = []
+        logging.basicConfig(
+            level=logging.INFO,
+            datefmt='%I:%M:%S',
+            handlers=[ch]
+        )
 
     def init_directories(self):
         self.root_directory = Directory("")
@@ -350,7 +359,7 @@ class MyApp(App):
             elif isinstance(item, Directory):
                 self.anime_list_widget.clear_children()
                 self.anime_list_widget.set_data(item)
-                self.log("Loading queue")
+                logging.info("Loading queue")
                 for content in item.get_content():
                     if content == item.parent:
                         ItemWidget(self.anime_list_widget, "<- (Back)", content, style=curses.A_NORMAL)
@@ -396,11 +405,11 @@ class MyApp(App):
             entry_to_remove = item.get_data()
             directory_to_remove_from = widget.get_data()
             if directory_to_remove_from.delete_entry(entry_to_remove):
-                logger("Successfully removed from the queue")
+                logging.info("Successfully removed from the queue")
                 widget.remove_selected()
                 widget.redraw()
             else:
-                logger("Error removing the item")
+                logging.error("Error removing the item")
 
 
 def main(stdscr):
@@ -411,17 +420,6 @@ def main(stdscr):
     curses.use_default_colors()
 
     app = MyApp(stdscr)
-    logging.basicConfig(
-        format='%(asctime)s %(levelname)s %(message)s',
-        level=logging.INFO,
-        datefmt='%I:%M:%S'
-    )
-    logger = logging.getLogger()
-    ch = GUIHandler(app.log)
-    ch.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
     app.run()
 
 
