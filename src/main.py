@@ -65,25 +65,43 @@ class CREpisode(Episode):
         return "CR-" + self.data["media_id"]
 
     def open(self):
-        user_state.record_history(self.get_id(), 0)
         user_state.update_item_access(self.anime_id)
-        mpv_args = (
-            "--start=%d " % max(0, user_state.get_playhead(self.get_id()) - 5)
-        ) + '--term-status-msg "Playback Status: ${{=time-pos}} ${{=duration}} " {filename}'
-        args = ["streamlink", self.data["url"], "best", "--verbose-player", "-a", mpv_args]
-        player_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        playhead = max(0, user_state.get_playhead(self.get_id()) - 5)
+        mpv_args = " ".join([
+            f"--start={playhead}",
+            "--term-status-msg \"Playback Status: ${{=time-pos}} ${{=duration}}\"",
+            "--cache=yes --cache-secs=300 --force-seekable=yes --hr-seek=yes",
+            "--hr-seek-framedrop=yes",
+            "{filename}"
+        ])
+        # mpv_args = (
+        #     "--start=%d " % playhead
+        # ) + '--term-status-msg "Playback Status: ${{=time-pos}} ${{=duration}} " {filename}'
+        args = [
+            "streamlink",
+            self.data["url"],
+            "best",
+            "--verbose-player",
+            "--player", "mpv",
+            "--player-args",
+            mpv_args
+        ]
+        player_process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
         logging.info("$ " + " ".join(args))
         playhead = None
         for line in player_process.stdout:
             try:
-                line = line.decode().strip()
-                if line[:16] == "Playback Status:":
+                line = line.strip()
+                if "Playback Status:" in line:
                     playhead, total_time = [float(x) for x in line.split()[-2:]]
+                    user_state.record_history(self.get_id(), playhead)
             except Exception as exp:
                 logging.warning("Error parsing player stdout (%s): %s", line, str(exp))
 
         if playhead:
             user_state.record_history(self.get_id(), playhead, total_time)
+        else:
+            user_state.record_history(self.get_id(), 0)
         player_process.wait()
 
     def get_number(self):
@@ -262,12 +280,26 @@ def generate_control_switch(lst, active=0):
 
 class MyApp(App):
     def __init__(self, stdscr):
-        root = BaseLayout(Value(curses.COLS), Value(curses.LINES), None)
-        super().__init__(stdscr, root)
+        super().__init__(stdscr, BaseLayout(Value(curses.COLS), Value(curses.LINES), None))
         self._setup_logging()
+        self._setup_layout()
 
+    def _setup_logging(self):
+        """ Setup logging handler """
+        ch = GUIHandler(self.log)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        ch.setFormatter(formatter)
+        logging.getLogger().handlers = []
+        logging.basicConfig(
+            level=logging.INFO,
+            datefmt='%I:%M:%S',
+            handlers=[ch]
+        )
+
+    def _setup_layout(self):
+        """ Setup layout """
         main_container = ContainerWidget(
-            root,
+            self.root,
             False,
             constants.APP_NAME + " v" + constants.APP_VERSION,
             center=True,
@@ -280,6 +312,7 @@ class MyApp(App):
 
         l5 = BaseLayout(Value(1, ValueType.VAL_RELATIVE), Value(-1, ValueType.VAL_ABSOLUTE), l4)
         c3 = ContainerWidget(l5, True, "Log")
+        self.set_log_widget(LogWidget(c3))
 
         c1 = ContainerWidget(l2, True, "Anime")
         c2 = ContainerWidget(l1, True, "Episodes")
@@ -299,7 +332,7 @@ class MyApp(App):
 
         self.init_directories()
         # Register events
-        root.register_event("q", lambda _: sys.exit())
+        self.root.register_event("q", lambda _: sys.exit())
         self.prev_switch, self.next_switch, self.switch_to = generate_control_switch(
             [("anime", lst1), ("episodes", lst2)], active=0
         )
@@ -309,20 +342,7 @@ class MyApp(App):
         l1.register_event("KEY_LEFT", lambda _: self.prev_switch())
         lst1.register_event("\n", self.list_content)
         lst2.register_event("\n", self.open_episode)
-        self.set_log_widget(LogWidget(c3))
         self.set_control(lst1)
-
-    def _setup_logging(self):
-        """ Setup logging handler """
-        ch = GUIHandler(self.log)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        ch.setFormatter(formatter)
-        logging.getLogger().handlers = []
-        logging.basicConfig(
-            level=logging.INFO,
-            datefmt='%I:%M:%S',
-            handlers=[ch]
-        )
 
     def init_directories(self):
         self.root_directory = Directory("")
